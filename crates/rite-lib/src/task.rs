@@ -439,7 +439,7 @@ impl Task {
     }
 
     /// The repository this ticket is about (tickets 101/107): its
-    /// `repository` field, as a bare name — `agile-md/amd` and `amd` are the
+    /// `repository` field, as a bare name — `acme/amd` and `amd` are the
     /// same repository. `None` when the ticket doesn't say.
     pub fn repository(&self) -> Option<String> {
         self.meta("repository")
@@ -1302,8 +1302,8 @@ fn validate_points(points: &str) -> Result<()> {
 /// Replace a frontmatter value, adding the key before the closing fence when
 /// the ticket doesn't have it yet — tasks written by an older template, or by
 /// hand, still get linked.
-/// A `repository` value as a bare repository name: `agile-md/amd`,
-/// `git@github.com:agile-md/amd.git` and `amd` all name `amd`.
+/// A `repository` value as a bare repository name: `acme/amd`,
+/// `git@github.com:acme/amd.git` and `amd` all name `amd`.
 pub fn repo_name(value: &str) -> String {
     let value = value.trim().trim_end_matches('/');
     let value = value.strip_suffix(".git").unwrap_or(value);
@@ -2136,9 +2136,9 @@ mod tests {
     fn repo_name_reduces_any_repository_value_to_its_bare_name() {
         for value in [
             "amd",
-            "agile-md/amd",
-            "git@github.com:agile-md/amd.git",
-            "https://github.com/agile-md/amd/",
+            "acme/amd",
+            "git@github.com:acme/amd.git",
+            "https://github.com/acme/amd/",
             "  amd.git ",
         ] {
             assert_eq!(repo_name(value), "amd", "{value}");

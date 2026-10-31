@@ -789,7 +789,7 @@ redundant. Their history is in git if it is ever wanted again.
   font is needed to show it; the README and the site pick one with
   `<picture>`. `pages/social.png` (1280×640, under GitHub's 1 MB) is the
   site's `og:image` and the repository's social preview. The older
-  `agile-md-*`/`agilerite-*` logos stay for anything still linking them.
+  `agile-md-*` and `agilerite-*` logos were removed (ticket 350).
   `crates/rite-ui/app-icon.svg` is the desktop icon (board in blue, yellow
   and green for todo, doing, done; documents, git diamond, bulb; no
   words); after changing it, `cargo tauri icon app-icon.svg` in
@@ -2054,7 +2054,7 @@ changes):
   opened with (`ContentHash` as 16 hex digits, since a page can't hold a
   `u64`), priority/points validated, the lease fields always kept as on
   disk. The page derives `branch-name` from the title with
-  `rite_ui_model::slugify`, which must match `agile_md::task::slugify` —
+  `rite_ui_model::slugify`, which must match `rite_lib::task::slugify` —
   `rite-ui`'s tests check they agree.
 - **The Backlogs column lists compact boxes** (ticket 109): each epic or
   sprint shows only its name and an amount — an epic's ticket count, a
@@ -2096,7 +2096,7 @@ changes):
   throw away filters and sort.
 - **The landing page** (ticket 020, `rite-ui-web/src/home.rs`): riteui
   always opens on it (`Ctx.view`: `View::Home`/`View::Board`). The `home`
-  command returns `rite_ui_model::Home` (My work from `agile_md::my_work`,
+  command returns `rite_ui_model::Home` (My work from `rite_lib::my_work`,
   and the projects); `set_project_hidden` flips `ui.hidden-projects`.
   Opening a project or a work item reuses `set_tasks_dir` (which also
   remembers it as `ui.board`), then `open_ticket`. On Home the header

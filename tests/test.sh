@@ -2353,7 +2353,7 @@ assert "importing the same source again leaves out what's already here, logged t
     && grep -q 'rite import tickets' import.log && grep -q 'Shipped feature.* is already on this board' import.log \
     && ! git status --porcelain --untracked-files=all | grep -q import.log"
 # Ticket 251: a source with no backlog/ and tickets loose outside any column,
-# as agile-md-hosted's was.
+# as a hosted project's was.
 loose_src="$(mktemp -d)"
 mkdir -p "${loose_src}/todo" "${loose_src}/doing" "${loose_src}/done"
 for t in "124 Loose one" "127 Loose two"; do

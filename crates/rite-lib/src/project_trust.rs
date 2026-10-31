@@ -111,13 +111,13 @@ mod tests {
     fn the_first_sighting_is_adopted_silently() {
         let dir = tempfile::tempdir().unwrap();
         let board = board(dir.path());
-        set_project(&board, "agile-md");
+        set_project(&board, "acme-app");
         let store = dir.path().join("trust");
 
         check_at(&board, &store).unwrap();
         assert_eq!(
             Config::load_from(&store).get(&key_of(&board.root)),
-            Some("agile-md")
+            Some("acme-app")
         );
     }
 
@@ -173,7 +173,7 @@ mod tests {
     fn a_matching_second_sighting_is_quiet() {
         let dir = tempfile::tempdir().unwrap();
         let board = board(dir.path());
-        set_project(&board, "agile-md");
+        set_project(&board, "acme-app");
         let store = dir.path().join("trust");
 
         check_at(&board, &store).unwrap();
@@ -186,7 +186,7 @@ mod tests {
         let board = board(dir.path());
         let store = dir.path().join("trust");
 
-        set_project(&board, "agile-md");
+        set_project(&board, "acme-app");
         check_at(&board, &store).unwrap();
 
         // Simulate a hand-edit of the board-local settings file: rewrite it
@@ -195,7 +195,7 @@ mod tests {
         fs::write(board_settings::path(&board), "project = widgets\n").unwrap();
 
         let err = check_at(&board, &store).unwrap_err().to_string();
-        assert!(err.contains("agile-md"), "{err}");
+        assert!(err.contains("acme-app"), "{err}");
         assert!(err.contains("widgets"), "{err}");
     }
 }

@@ -546,13 +546,13 @@ mod tests {
 
     #[test]
     fn the_owner_defaults_to_the_project_name() {
-        assert_eq!(owner_for("agile-md", None), "agile-md");
+        assert_eq!(owner_for("acme-app", None), "acme-app");
     }
 
     #[test]
     fn an_explicit_org_overrides_the_project_name() {
         assert_eq!(
-            owner_for("agile-md", Some("some-other-org")),
+            owner_for("acme-app", Some("some-other-org")),
             "some-other-org"
         );
     }

@@ -59,7 +59,7 @@ pub fn write(dir: &Path, name: &str) -> Result<()> {
 }
 
 /// The project a board repository belongs to: `kanrite-tickets` is
-/// `agile-md` by the layout `init` creates; otherwise whatever the board
+/// `kanrite` by the layout `init` creates; otherwise whatever the board
 /// declares; otherwise the directory's own name.
 pub fn project_name(tickets: &Path) -> String {
     let dir_name = tickets

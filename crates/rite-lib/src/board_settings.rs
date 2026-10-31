@@ -1229,10 +1229,10 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let board = board(dir.path());
         let mut settings = load(&board);
-        settings.set_project("agile-md").unwrap();
+        settings.set_project("acme-app").unwrap();
         settings.save(&board).unwrap();
 
-        assert_eq!(load(&board).project(), Some("agile-md"));
+        assert_eq!(load(&board).project(), Some("acme-app"));
     }
 
     #[test]
@@ -1240,9 +1240,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let board = board(dir.path());
         let mut settings = load(&board);
-        settings.set_project("agile-md").unwrap();
-        settings.set_project("agile-md").unwrap();
-        assert_eq!(settings.project(), Some("agile-md"));
+        settings.set_project("acme-app").unwrap();
+        settings.set_project("acme-app").unwrap();
+        assert_eq!(settings.project(), Some("acme-app"));
     }
 
     #[test]
@@ -1261,12 +1261,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let board = board(dir.path());
         let mut settings = load(&board);
-        settings.set_project("agile-md").unwrap();
+        settings.set_project("acme-app").unwrap();
         let err = settings.set_project("widgets").unwrap_err().to_string();
-        assert!(err.contains("agile-md"), "{err}");
+        assert!(err.contains("acme-app"), "{err}");
         assert!(err.contains("widgets"), "{err}");
         // The refused change must not have taken.
-        assert_eq!(settings.project(), Some("agile-md"));
+        assert_eq!(settings.project(), Some("acme-app"));
     }
 
     #[test]
@@ -1282,13 +1282,13 @@ mod tests {
         let board = board(dir.path());
         let mut settings = load(&board);
         assert_eq!(settings.next_id(), None);
-        settings.set_project("agile-md").unwrap();
+        settings.set_project("acme-app").unwrap();
         settings.set_next_id(7);
         settings.save(&board).unwrap();
 
         let reloaded = load(&board);
         assert_eq!(reloaded.next_id(), Some(7));
-        assert_eq!(reloaded.project(), Some("agile-md"));
+        assert_eq!(reloaded.project(), Some("acme-app"));
     }
 
     #[test]
@@ -1299,18 +1299,18 @@ mod tests {
         std::fs::write(path(&board), "forge = gitea\n").unwrap();
 
         let mut settings = load(&board);
-        settings.set_project("agile-md").unwrap();
+        settings.set_project("acme-app").unwrap();
         settings.save(&board).unwrap();
 
         let reread = Config::load_from(&path(&board));
         assert_eq!(reread.get("forge"), Some("gitea"));
-        assert_eq!(reread.get(PROJECT), Some("agile-md"));
+        assert_eq!(reread.get(PROJECT), Some("acme-app"));
     }
 
     #[test]
     fn project_names_allow_letters_digits_hyphens_periods_colons_and_underscores() {
-        assert!(validate_project_name("agile-md").is_ok());
-        assert!(validate_project_name("Agile-MD-2").is_ok());
+        assert!(validate_project_name("acme-app").is_ok());
+        assert!(validate_project_name("Acme-App-2").is_ok());
         assert!(validate_project_name("rite_lib").is_ok());
         assert!(validate_project_name("agile.md").is_ok());
         assert!(validate_project_name("agile:md").is_ok());
