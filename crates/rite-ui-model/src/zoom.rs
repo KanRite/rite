@@ -1,6 +1,6 @@
 //! Zooming the desktop board (ticket 024): Ctrl + and Ctrl - step through
 //! these sizes, Ctrl 0 goes back to 100%. The size is remembered on this
-//! machine (`ui.zoom` in agile-md's own config), not per project.
+//! machine (`ui.zoom` in KanRite's own config), not per project.
 
 /// The sizes Ctrl + and Ctrl - step through, in percent.
 pub const STEPS: [u32; 11] = [50, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200];

@@ -12,7 +12,7 @@
 #   closed  a PR was merged or closed: close the issue raised for it.
 #
 # Looking at every open PR (no PR given), it also raises an issue on an older
-# PR that a newer one supersedes. Every issue it raises reaches the agile-md
+# PR that a newer one supersedes. Every issue it raises reaches the KanRite
 # board as a TRIAGE ticket, through rite's GitHub issue import.
 #
 # A PR is ready when every update in it is compatible (a patch, or a minor

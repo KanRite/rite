@@ -21,15 +21,14 @@ line and the desktop board share one implementation of the board and the
 boundary is enforced by the dependency graph rather than by review:
 
 ```
-crates/rite-lib/       the library (`agile_md`) — everything that touches the board
+crates/rite-lib/       the library (`rite_lib`, package `rite-lib`) — everything that touches the board
 crates/rite-cli/       → binary `rite`    (clap, inquire, the $EDITOR scratch file)
 crates/rite-ui/        → binary `riteui`  (Tauri 2: the window and its commands)
 crates/rite-ui-web/    the board's page  (Leptos 0.8, CSR, built to wasm by Trunk)
 crates/rite-ui-model/  types and pure rules rite-ui and rite-ui-web share (wasm-safe)
 ```
 
-The library keeps the crate name `agile_md`, so every `use` in the workspace is
-unchanged. The desktop board is described under "The desktop board" below.
+The library crate is `rite-lib` (`rite_lib` in code), renamed from `agile-md` / `agile_md` in ticket 350 (340). The desktop board is described under "The desktop board" below.
 
 The terminal board (`crates/amd-tui/`, tickets 080/081) and the Tauri spike
 (`crates/amd-tauri/`, ticket 078) were removed in ticket 082: the desktop
@@ -319,7 +318,7 @@ redundant. Their history is in git if it is ever wanted again.
   is 0 off Unix; modified time and size still show a replaced program.
   **Checking a Windows build here:** `rustup target add
   x86_64-pc-windows-gnu`, the `gcc-mingw-w64-x86-64` package (ring's C),
-  then `cargo check --target x86_64-pc-windows-gnu -p agile-md -p rite-cli
+  then `cargo check --target x86_64-pc-windows-gnu -p rite-lib -p rite-cli
   -p rite-ui --all-targets`.
 - `crates/rite-lib/src/update.rs` — is there a newer release (ticket 190,
   the detecting half of in-app updates; applying is 191, the Update / Later
@@ -1869,10 +1868,9 @@ changes):
   day, on stderr, that they're now rite (`renamed::notice`, remembered in
   `renamed-notice` beside update.json). `RITE_*` variables are read first,
   then the `AMD_*` of the same name (`renamed::var`; `settings::resolved`
-  goes through it). Unchanged on purpose: the library crate `agile_md`, the
-  `amd-<target>.zip` asset (311), the Tauri
-  identifier `io.github.agile-md.amdui` (it names riteui's WebView data
-  folder). **The repository is `KanRite/rite`** (ticket 313, renamed from
+  goes through it). Unchanged on purpose: the `amd-<target>.zip` asset (311). The Tauri
+  identifier is `io.github.kanrite.riteui` (ticket 350; it names riteui's WebView
+  data folder, so the rename left a fresh one: the page keeps nothing in it). **The repository is `KanRite/rite`** (ticket 313, renamed from
   `KanRite/amd` on 2026-10-27): GitHub redirects git, the web, raw files
   and the releases API from the old names, and every 4.x build's update
   check goes through that redirect, so no repository may ever be created

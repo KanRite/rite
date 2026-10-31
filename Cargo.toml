@@ -25,7 +25,7 @@ repository = "https://github.com/kanrite/rite"
 license = "MIT"
 
 [workspace.dependencies]
-agile-md = { path = "crates/rite-lib" }
+rite-lib = { path = "crates/rite-lib" }
 rite-ui-model = { path = "crates/rite-ui-model" }
 anyhow = "1"
 clap = { version = "4", features = ["derive", "string", "wrap_help"] }

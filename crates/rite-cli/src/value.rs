@@ -11,7 +11,7 @@ use clap::builder::{PossibleValue, TypedValueParser};
 use clap::error::ErrorKind;
 use clap::{Arg, Command, Error};
 
-use agile_md::{branch, templates};
+use rite_lib::{branch, templates};
 
 /// `--branch-type`: one of the board's branch types, or empty for no branch.
 #[derive(Clone, Copy, Debug)]

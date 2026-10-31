@@ -28,9 +28,9 @@ fn main() -> ExitCode {
     // in for.
     let args: Vec<String> = std::env::args().skip(1).collect();
     // Run as `amdui`, the shim of the old name (ticket 309): said once a day.
-    agile_md::renamed::when_run_by_old_name();
+    rite_lib::renamed::when_run_by_old_name();
     // The machine folders' new name (ticket 310), once.
-    agile_md::places::move_old_folders_and_say();
+    rite_lib::places::move_old_folders_and_say();
     rite_ui::adopt_old_speech_setup();
     match args.first().map(String::as_str) {
         None => {}

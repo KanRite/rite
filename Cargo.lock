@@ -9,22 +9,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
-name = "agile-md"
-version = "5.0.0"
-dependencies = [
- "anyhow",
- "deunicode",
- "dunce",
- "minijinja",
- "serde",
- "serde_json",
- "sha2 0.11.1",
- "tempfile",
- "time",
- "zip 9.1.0",
-]
-
-[[package]]
 name = "ahash"
 version = "0.8.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4470,7 +4454,6 @@ dependencies = [
 name = "rite-cli"
 version = "5.0.0"
 dependencies = [
- "agile-md",
  "anyhow",
  "clap",
  "clap_complete",
@@ -4478,6 +4461,7 @@ dependencies = [
  "inquire",
  "libc",
  "richrs",
+ "rite-lib",
  "serde_json",
  "tempfile",
  "time",
@@ -4486,10 +4470,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "rite-lib"
+version = "5.0.0"
+dependencies = [
+ "anyhow",
+ "deunicode",
+ "dunce",
+ "minijinja",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "tempfile",
+ "time",
+ "zip 9.1.0",
+]
+
+[[package]]
 name = "rite-ui"
 version = "5.0.0"
 dependencies = [
- "agile-md",
  "alacritty_terminal",
  "anyhow",
  "base64 0.23.1",
@@ -4499,6 +4498,7 @@ dependencies = [
  "cpal",
  "libc",
  "pulldown-cmark",
+ "rite-lib",
  "rite-ui-model",
  "serde",
  "serde_json",

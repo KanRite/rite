@@ -6,7 +6,7 @@
 //! tickets at the same moment can race for the same number; `sync.rs`
 //! catches that before anything reaches the remote.
 //!
-//! **`cloud`** — a future paid plan, where an agile-md service hands out each
+//! **`cloud`** — a future paid plan, where a KanRite service hands out each
 //! number, so a race can't happen at all. There are no plans yet: this is a
 //! **stub** that refuses with an explanation. The seam is `Cloud::next_id`:
 //! it will make an authenticated request for the project's next number (the

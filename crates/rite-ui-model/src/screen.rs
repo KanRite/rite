@@ -1,5 +1,5 @@
 //! What the window shows, as the page tells rite-ui (ticket 186). The same
-//! shape as `agile_md::screen::View`, which rite-ui writes for an AI
+//! shape as `rite_lib::screen::View`, which rite-ui writes for an AI
 //! assistant's `screen` tool; this crate can't depend on rite-lib.
 
 use serde::{Deserialize, Serialize};

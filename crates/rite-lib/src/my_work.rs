@@ -34,7 +34,7 @@ use crate::git;
 use crate::registry::{self, Registry};
 use crate::settings::Config;
 
-/// Where the hidden projects are kept, in agile-md's own per-machine config.
+/// Where the hidden projects are kept, in KanRite's own per-machine config.
 const HIDDEN: &str = "ui.hidden-projects";
 /// Projects whose sprint graphs you've folded on the landing page (ticket
 /// 305), by board folder, in the same per-machine config.

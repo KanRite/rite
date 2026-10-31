@@ -10,9 +10,9 @@
 
 use std::path::Path;
 
-use agile_md::documents;
 use base64::Engine;
 use pulldown_cmark::{CowStr, Event, Options, Parser, Tag, TagEnd, html};
+use rite_lib::documents;
 
 /// `text`, the document at `path` in the repository `root`, as HTML.
 pub fn render(root: &Path, path: &str, text: &str) -> String {

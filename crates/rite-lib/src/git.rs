@@ -1,6 +1,6 @@
 //! Thin wrappers over the `git` CLI.
 //!
-//! agile-md deliberately shells out rather than linking a git library: the
+//! KanRite deliberately shells out rather than linking a git library: the
 //! behaviour is then exactly what the user would get typing the command, and
 //! the binary stays small and dependency-free on the git side.
 

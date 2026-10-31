@@ -21,10 +21,10 @@ use std::env;
 use std::io::{self, Write};
 use std::path::Path;
 
-use agile_md::board::{Board, Column};
 use anyhow::{Result, bail};
 use clap::Command;
 use clap_complete::{Shell, generate};
+use rite_lib::board::{Board, Column};
 
 /// Print the completion script for `shell`, or for `$SHELL` when it's `None`.
 pub fn print(shell: Option<Shell>, command: &mut Command) -> Result<()> {

@@ -19,8 +19,8 @@ use std::sync::OnceLock;
 use anyhow::Result;
 use richrs::prelude::{Console, Style, Tree, TreeNode};
 
-use agile_md::board::{Board, Column, Kind};
-use agile_md::task::Task;
+use rite_lib::board::{Board, Column, Kind};
+use rite_lib::task::Task;
 
 static PLAIN: OnceLock<bool> = OnceLock::new();
 
@@ -203,9 +203,9 @@ fn sort(nodes: &mut [Node]) {
 
 /// A column's heading: its folder in capitals, as it always was, unless the
 /// team has named it something else (ticket 224), then that name.
-fn heading(workflow: &agile_md::workflow::Workflow, column: Column) -> String {
+fn heading(workflow: &rite_lib::workflow::Workflow, column: Column) -> String {
     let label = workflow.label(column);
-    let standard = agile_md::workflow::Workflow::standard().label(column);
+    let standard = rite_lib::workflow::Workflow::standard().label(column);
     if label == standard {
         column.as_str().to_uppercase()
     } else {
@@ -335,7 +335,7 @@ fn labels(node: &Node, root: bool) -> String {
             .map(|holder| format!("locked:{holder}")),
         // Ticket 143: when it's due (overdue said so), and that it repeats.
         task.due().map(|due| {
-            if agile_md::recur::overdue(task, agile_md::recur::today()) {
+            if rite_lib::recur::overdue(task, rite_lib::recur::today()) {
                 format!("overdue:{due}")
             } else {
                 format!("due:{due}")
@@ -355,7 +355,7 @@ fn labels(node: &Node, root: bool) -> String {
 /// terminal: ids link to their tickets, a started sprint's stub is dimmed
 /// and "waits on" is in colour. In a pipe: the same characters, no colour,
 /// and a stub says it's in a started sprint.
-pub fn tree(board: &Board, trees: &[agile_md::requires::TreeNode]) {
+pub fn tree(board: &Board, trees: &[rite_lib::requires::TreeNode]) {
     let colour = rich();
     for (n, root) in trees.iter().enumerate() {
         if n > 0 {
@@ -368,11 +368,11 @@ pub fn tree(board: &Board, trees: &[agile_md::requires::TreeNode]) {
 
 fn tree_children(
     board: &Board,
-    children: &[agile_md::requires::TreeNode],
+    children: &[rite_lib::requires::TreeNode],
     prefix: &str,
     colour: bool,
 ) {
-    use agile_md::requires::Edge;
+    use rite_lib::requires::Edge;
     for (n, child) in children.iter().enumerate() {
         let last = n + 1 == children.len();
         let branch = match (last, child.edge) {
@@ -387,7 +387,7 @@ fn tree_children(
     }
 }
 
-fn tree_line(board: &Board, node: &agile_md::requires::TreeNode, colour: bool) -> String {
+fn tree_line(board: &Board, node: &rite_lib::requires::TreeNode, colour: bool) -> String {
     let (dim, yellow, bold, reset) = if colour {
         ("\x1b[2m", "\x1b[33m", "\x1b[1m", "\x1b[0m")
     } else {

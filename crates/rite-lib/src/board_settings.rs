@@ -39,7 +39,7 @@
 //! - `commit`: whether a mutating command commits (and pushes) its own
 //!   change automatically — the audit trail for a dedicated, board-only
 //!   `{project}-tickets` repository, which has nothing else in it for a
-//!   change to ride in on (`agile-md-documents`'
+//!   change to ride in on (`kanrite-documents`'
 //!   `adr/adr/0006-auto-commit-for-dedicated-tickets-repos.md`). Absent or
 //!   unparsable means **on** — the opposite default from every other
 //!   setting here, deliberately: this feature's whole job is broken until
@@ -1311,7 +1311,7 @@ mod tests {
     fn project_names_allow_letters_digits_hyphens_periods_colons_and_underscores() {
         assert!(validate_project_name("agile-md").is_ok());
         assert!(validate_project_name("Agile-MD-2").is_ok());
-        assert!(validate_project_name("agile_md").is_ok());
+        assert!(validate_project_name("rite_lib").is_ok());
         assert!(validate_project_name("agile.md").is_ok());
         assert!(validate_project_name("agile:md").is_ok());
         assert!(validate_project_name("").is_err());

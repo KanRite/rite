@@ -1,5 +1,5 @@
 //! Preferences (ticket 148): settings that belong to you on this machine,
-//! not to the project. Saved in agile-md's own config
+//! not to the project. Saved in KanRite's own config
 //! (`~/.config/kanrite/config`), never committed: the colour scheme, the
 //! zoom, and which board this machine opens when started from anywhere.
 

@@ -2,7 +2,7 @@
 //! `rite init` makes beside the tickets one (ADRs, RFCs, docs), and one
 //! documents repository shared by every project, named in the project's
 //! `.settings` (`shared-documents`). Documents are pushed straight to main
-//! with git as their history (agile-md-documents' ADR 0007): [`history`]
+//! with git as their history (kanrite-documents' ADR 0007): [`history`]
 //! lists a document's versions, [`read_version`] reads one, and
 //! [`restore`] writes it back as a new commit and pushes it (ticket 169).
 //!

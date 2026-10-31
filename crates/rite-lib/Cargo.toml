@@ -5,7 +5,7 @@
 # manifest is the rule being enforced: this crate cannot draw a board even if
 # someone tried. The desktop board is crates/rite-ui (ticket 084).
 [package]
-name = "agile-md"
+name = "rite-lib"
 description = "A tiny filesystem Kanban: markdown tasks in todo/, doing/ and done/"
 keywords = ["kanban", "tasks", "markdown", "cli", "git"]
 categories = ["command-line-utilities"]
@@ -15,12 +15,6 @@ edition.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 license.workspace = true
-
-# The crate keeps the name `agile_md`: it is what every `use` in the workspace
-# already says, and renaming it would churn every import to no end.
-[lib]
-name = "agile_md"
-path = "src/lib.rs"
 
 [dependencies]
 anyhow.workspace = true

@@ -133,7 +133,7 @@ fn speechd_dir() -> PathBuf {
     std::env::var_os("XDG_CONFIG_HOME")
         .map(PathBuf::from)
         .filter(|p| p.is_absolute())
-        .or_else(|| agile_md::home::dir().map(|h| h.join(".config")))
+        .or_else(|| rite_lib::home::dir().map(|h| h.join(".config")))
         .unwrap_or_else(|| PathBuf::from(".config"))
         .join("speech-dispatcher")
 }
@@ -506,8 +506,8 @@ fn adopt_new_name_in(dir: &Path) -> Result<bool> {
     }
     let module = module
         .replace(
-            &format!("/{}/", agile_md::places::OLD_NAME),
-            &format!("/{}/", agile_md::places::NAME),
+            &format!("/{}/", rite_lib::places::OLD_NAME),
+            &format!("/{}/", rite_lib::places::NAME),
         )
         .replacen("# agile-md: Piper", "# kanrite: Piper", 1);
     fs::write(&new, module).with_context(|| format!("writing {}", new.display()))?;
@@ -766,9 +766,9 @@ mod tests {
     #[ignore = "a manual check with a real speech-dispatcher"]
     fn write_conf_for_a_manual_check() {
         let (Ok(dir), Ok(piper), Ok(model)) = (
-            agile_md::renamed::var("RITE_PIPER_CONF_DIR"),
-            agile_md::renamed::var("RITE_PIPER_BIN"),
-            agile_md::renamed::var("RITE_PIPER_MODEL"),
+            rite_lib::renamed::var("RITE_PIPER_CONF_DIR"),
+            rite_lib::renamed::var("RITE_PIPER_BIN"),
+            rite_lib::renamed::var("RITE_PIPER_MODEL"),
         ) else {
             return;
         };

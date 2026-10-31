@@ -18,11 +18,11 @@ pub fn due_first(list: &mut [crate::TicketSummary]) {
 }
 
 /// The branch type that says "no branch, on purpose" (ticket 066), as
-/// `agile_md::branch::NO_BRANCH`.
+/// `rite_lib::branch::NO_BRANCH`.
 pub const NO_BRANCH: &str = "none";
 
 /// Why a ticket's repository and branch type don't go together on a
-/// tickets board (ticket 066), worded as `agile_md::pairing::mismatch`
+/// tickets board (ticket 066), worded as `rite_lib::pairing::mismatch`
 /// (rite-ui's tests check they agree).
 pub fn pairing_mismatch(repository: &str, branch_type: &str) -> Option<String> {
     let repository = repository.trim();

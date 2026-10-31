@@ -30,11 +30,11 @@ use clap::{Args, CommandFactory, Parser, Subcommand};
 use clap_complete::Shell;
 use time::format_description::well_known::Rfc3339;
 
-use agile_md::board::{ABANDON, Board, Column, Kind};
-use agile_md::create::{Draft, NewTicket};
-use agile_md::registry::Registry;
-use agile_md::templates::{DEFAULT_TEMPLATE, TEMPLATE_SUFFIX, Templates};
-use agile_md::{board_settings, branch, git, task, templates, transition};
+use rite_lib::board::{ABANDON, Board, Column, Kind};
+use rite_lib::create::{Draft, NewTicket};
+use rite_lib::registry::Registry;
+use rite_lib::templates::{DEFAULT_TEMPLATE, TEMPLATE_SUFFIX, Templates};
+use rite_lib::{board_settings, branch, git, task, templates, transition};
 
 /// `rite import --help`'s examples and what each kind does (ticket 162).
 const COLUMN_HELP: &str = "\
@@ -816,7 +816,7 @@ enum Cmd {
             value_name = "TYPE",
             default_value = "relates-to",
             value_parser = clap::builder::PossibleValuesParser::new(
-                agile_md::links::LinkType::ALL.map(agile_md::links::LinkType::slug)
+                rite_lib::links::LinkType::ALL.map(rite_lib::links::LinkType::slug)
             ),
         )]
         kind: String,
@@ -831,7 +831,7 @@ enum Cmd {
             long,
             value_name = "TYPE",
             value_parser = clap::builder::PossibleValuesParser::new(
-                agile_md::links::LinkType::ALL.map(agile_md::links::LinkType::slug)
+                rite_lib::links::LinkType::ALL.map(rite_lib::links::LinkType::slug)
             ),
         )]
         replace: Option<String>,
@@ -1025,7 +1025,7 @@ enum GroupCmd {
         #[arg(long, value_name = "TEXT", default_value = "")]
         description: String,
         /// How long it runs
-        #[arg(long, value_name = "DAYS", default_value_t = agile_md::group::DEFAULT_DAYS)]
+        #[arg(long, value_name = "DAYS", default_value_t = rite_lib::group::DEFAULT_DAYS)]
         days: u32,
     },
     /// Start a sprint. There is no way back: a started sprint takes nothing
@@ -1106,9 +1106,9 @@ fn main() -> ExitCode {
     }
 
     // Run as `amd`, the shim of the old name (ticket 309): said once a day.
-    agile_md::renamed::when_run_by_old_name();
+    rite_lib::renamed::when_run_by_old_name();
     // The machine folders' new name (ticket 310), once.
-    agile_md::places::move_old_folders_and_say();
+    rite_lib::places::move_old_folders_and_say();
 
     // The command tree is big enough that clap's recursive build and parse
     // overflow Windows' 1 MB main-thread stack (Unix gives 8 MB), so the
@@ -1128,7 +1128,7 @@ const STACK_SIZE: usize = 16 * 1024 * 1024;
 fn run_and_report() -> ExitCode {
     let result = run();
     // What auto priority moved along with the change (ticket 215).
-    for note in agile_md::auto_priority::take_notes() {
+    for note in rite_lib::auto_priority::take_notes() {
         println!("{note}");
     }
     match result {
@@ -1230,7 +1230,7 @@ enum IdeaAction {
         #[arg(long, value_name = "NAME")]
         name: Option<String>,
         /// A sprint's length in days
-        #[arg(long, value_name = "DAYS", default_value_t = agile_md::group::DEFAULT_DAYS)]
+        #[arg(long, value_name = "DAYS", default_value_t = rite_lib::group::DEFAULT_DAYS)]
         days: u32,
     },
 }
@@ -1318,8 +1318,8 @@ fn run() -> Result<()> {
     } = command
     {
         let board = register_board(path.as_deref(), project.as_deref(), remove.as_deref())?;
-        agile_md::project_trust::check(&board)?;
-        agile_md::archive::ensure_writable(&board)?;
+        rite_lib::project_trust::check(&board)?;
+        rite_lib::archive::ensure_writable(&board)?;
         migrate_settings(&board)?;
         return match remove {
             Some(name) => cmd_unregister(&board, &name),
@@ -1330,8 +1330,8 @@ fn run() -> Result<()> {
     // gets the same check of which project (ticket 120).
     if let Cmd::Deregister { name, project } = command {
         let board = register_board(None, project.as_deref(), Some(&name))?;
-        agile_md::project_trust::check(&board)?;
-        agile_md::archive::ensure_writable(&board)?;
+        rite_lib::project_trust::check(&board)?;
+        rite_lib::archive::ensure_writable(&board)?;
         migrate_settings(&board)?;
         return cmd_deregister(&board, &name);
     }
@@ -1346,7 +1346,7 @@ fn run() -> Result<()> {
     } = &command
     {
         if *unassigned || *no_unassigned {
-            agile_md::my_work::set_include_unassigned(*unassigned)?;
+            rite_lib::my_work::set_include_unassigned(*unassigned)?;
         }
         return cmd_mine(*all, sort, *json, hide.as_deref(), unhide.as_deref());
     }
@@ -1375,7 +1375,7 @@ fn run() -> Result<()> {
         return match action {
             None => mcp::run(),
             Some(McpAction::Setup { tool, fix }) => {
-                let home = agile_md::home::dir();
+                let home = rite_lib::home::dir();
                 if fix {
                     let home = home.context("no home folder to look in")?;
                     println!("{}", mcp::fix(&home, mcp::run_claude)?);
@@ -1448,14 +1448,14 @@ fn run() -> Result<()> {
     let board = ensure_board()?;
     // Notices if this board's declared project identity has silently
     // changed since rite last saw it — see project_trust.rs.
-    agile_md::project_trust::check(&board)?;
+    rite_lib::project_trust::check(&board)?;
     // An archived project only reads (ticket 157).
     if changes_board(&command) {
-        agile_md::archive::ensure_writable(&board)?;
+        rite_lib::archive::ensure_writable(&board)?;
     }
     // In step with the remote before anything else (ticket 102): a change
     // never lands on a stale clone, and a listing shows teammates' work.
-    for event in agile_md::sync::catch_up(&board, sync_purpose(&command))? {
+    for event in rite_lib::sync::catch_up(&board, sync_purpose(&command))? {
         match event {
             transition::Event::Info(text) => eprintln!("{text}"),
             transition::Event::Warn(text) => eprintln!("rite: {text}"),
@@ -1615,18 +1615,18 @@ fn run() -> Result<()> {
                 eprintln!("{line}");
             }
             // Why its priority is what it is (ticket 215).
-            if let Some(line) = agile_md::auto_priority::note(&board, &task) {
+            if let Some(line) = rite_lib::auto_priority::note(&board, &task) {
                 eprintln!("{line}");
             }
             // Overdue, and how it repeats (ticket 143).
-            if agile_md::recur::overdue(&task, agile_md::recur::today()) {
+            if rite_lib::recur::overdue(&task, rite_lib::recur::today()) {
                 eprintln!("overdue: it was due {}", task.due().unwrap_or_default());
             }
             if let Some(rule) = task.recur() {
                 eprintln!("repeats {rule}: done makes the next one");
             }
             // Who to ask about it (ticket 155), on stderr like the lock note.
-            if let Some(line) = agile_md::authorship::summary(&board, &task) {
+            if let Some(line) = rite_lib::authorship::summary(&board, &task) {
                 eprintln!("{line}");
             }
             Ok(())
@@ -1659,7 +1659,7 @@ fn run() -> Result<()> {
                 &board.workflow().columns().collect::<Vec<_>>(),
             )?;
             let mut wanted = Vec::new();
-            for reference in agile_md::task::parse_list(&value) {
+            for reference in rite_lib::task::parse_list(&value) {
                 let other = board.find(&reference)?;
                 if other.path == task.path {
                     bail!("a ticket can't require itself");
@@ -1740,12 +1740,12 @@ fn run() -> Result<()> {
                         "priority" => {
                             println!(
                                 "{}",
-                                agile_md::auto_priority::set_by_hand(&board, &task, value)?
+                                rite_lib::auto_priority::set_by_hand(&board, &task, value)?
                             );
                         }
                         "repository" => {
                             task.set_repository(task.hash()?, value)?;
-                            let name = agile_md::task::repo_name(value);
+                            let name = rite_lib::task::repo_name(value);
                             if !name.is_empty()
                                 && !board_settings::load(&board).repos().contains(&name)
                             {
@@ -1768,7 +1768,7 @@ fn run() -> Result<()> {
                         "due" => {
                             // Not in an epic (ticket 253).
                             let epic = match task.column.kind() {
-                                agile_md::board::Kind::Backlog => task.epic.clone(),
+                                rite_lib::board::Kind::Backlog => task.epic.clone(),
                                 _ => task.epic_meta(),
                             };
                             board.refuse_due_in_epic(
@@ -1796,7 +1796,7 @@ fn run() -> Result<()> {
                 // Due soon: straight to todo (ticket 253), once every field
                 // is set, since it moves the file.
                 if due_changed
-                    && let Some(dated) = agile_md::task::Task::from_path(&task.path, task.column)
+                    && let Some(dated) = rite_lib::task::Task::from_path(&task.path, task.column)
                     && let Some(line) = transition::straight_to_todo(&board, &dated)
                 {
                     println!("{line}");
@@ -1829,9 +1829,9 @@ fn run() -> Result<()> {
             // Several people (ticket 254): the names replace the list, or
             // `--add`/`--remove` change it.
             let who = if add {
-                agile_md::task::regroup(&current, &named, &[])
+                rite_lib::task::regroup(&current, &named, &[])
             } else if remove {
-                agile_md::task::regroup(&current, &[], &named)
+                rite_lib::task::regroup(&current, &[], &named)
             } else if named.is_empty() && !clear && form::available() {
                 // No name: the picker in a terminal (ticket 089); anywhere
                 // else it unassigns, as it always has, so scripts are
@@ -1841,9 +1841,9 @@ fn run() -> Result<()> {
                     git::config(&board.root, "user.name"),
                     &task.assignee().unwrap_or_default(),
                 )?;
-                agile_md::task::regroup(&[one], &[], &[])
+                rite_lib::task::regroup(&[one], &[], &[])
             } else {
-                agile_md::task::regroup(&named, &[], &[])
+                rite_lib::task::regroup(&named, &[], &[])
             };
             with_auto_commit(&board, "assign", &id_display, &title, || {
                 task.set_assignees(task.hash()?, &who)?;
@@ -1884,7 +1884,7 @@ fn run() -> Result<()> {
         Cmd::Check => cmd_check(&board),
         Cmd::Links { task, json } => {
             let task = board.find(&task)?;
-            let linked = agile_md::links::linked(&board, &task)?;
+            let linked = rite_lib::links::linked(&board, &task)?;
             if json {
                 let rows: Vec<serde_json::Value> = linked
                     .iter()
@@ -1895,7 +1895,7 @@ fn run() -> Result<()> {
                             "title": l.task.title(),
                             "file": l.task.file_name(),
                             "column": l.task.column.as_str(),
-                            "place": agile_md::requires::place(&board, &l.task),
+                            "place": rite_lib::requires::place(&board, &l.task),
                             "recorded_here": l.recorded_here,
                         })
                     })
@@ -1923,7 +1923,7 @@ fn run() -> Result<()> {
                     l.kind.phrase(),
                     l.task.id_display(),
                     l.task.title(),
-                    agile_md::requires::place(&board, &l.task),
+                    rite_lib::requires::place(&board, &l.task),
                 );
             }
             Ok(())
@@ -1935,7 +1935,7 @@ fn run() -> Result<()> {
         } => {
             // Parent and child (ticket 261).
             let around = task.map(|t| board.find(&t)).transpose()?;
-            let trees = agile_md::hierarchy::hierarchy(&board, around.as_ref(), done)?;
+            let trees = rite_lib::hierarchy::hierarchy(&board, around.as_ref(), done)?;
             match (&around, trees.is_empty()) {
                 (Some(t), true) => {
                     println!("{} has no parent and no children", t.id_display())
@@ -1950,11 +1950,11 @@ fn run() -> Result<()> {
         }
         Cmd::Tree { task, done, .. } => {
             let around = task.map(|t| board.find(&t)).transpose()?;
-            let trees = agile_md::requires::family(&board, around.as_ref(), done)?;
+            let trees = rite_lib::requires::family(&board, around.as_ref(), done)?;
             // Empty only because done tickets were left out: say so.
             let all_done = trees.is_empty()
                 && !done
-                && !agile_md::requires::family(&board, around.as_ref(), true)?.is_empty();
+                && !rite_lib::requires::family(&board, around.as_ref(), true)?.is_empty();
             match (&around, trees.is_empty()) {
                 (Some(t), true) if all_done => println!(
                     "Everything {} is linked to is done (rite tree {} --done shows it)",
@@ -1986,7 +1986,7 @@ fn run() -> Result<()> {
 /// `rite renumber` (ticket 146): show, or with `--apply` fix, tickets that
 /// share a number.
 fn cmd_renumber(board: &Board, apply: bool, keep: Option<&str>) -> Result<()> {
-    use agile_md::renumber;
+    use rite_lib::renumber;
     let clashes = renumber::plan(board, keep)?;
     if clashes.is_empty() {
         println!("no two tickets share a number");
@@ -2030,7 +2030,7 @@ fn cmd_recover(
     by: Option<&str>,
     since: Option<&str>,
 ) -> Result<()> {
-    use agile_md::recover;
+    use rite_lib::recover;
     if let Some(date) = since
         && !(date.len() == 10 && date.as_bytes()[4] == b'-' && date.as_bytes()[7] == b'-')
     {
@@ -2104,7 +2104,7 @@ fn cmd_mine(
     hide: Option<&str>,
     unhide: Option<&str>,
 ) -> Result<()> {
-    use agile_md::my_work::{self, Sort};
+    use rite_lib::my_work::{self, Sort};
     let projects = my_work::projects();
     if let Some(name) = hide.or(unhide) {
         let matches: Vec<_> = projects.iter().filter(|p| p.name == name).collect();
@@ -2186,7 +2186,7 @@ fn cmd_mine(
 /// What `rite show` says about a ticket's lease, on stderr so the ticket on
 /// stdout stays exactly the file: the same four cases as riteui's editor
 /// (ticket 110). A lapsed lease is said as such, never as unlocked.
-fn lock_note(board: &Board, task: &agile_md::task::Task) -> Option<String> {
+fn lock_note(board: &Board, task: &rite_lib::task::Task) -> Option<String> {
     let by = task.locked_by()?;
     let until = task.locked_until()?.format(&Rfc3339).ok()?;
     let mine = git::config(board.repo_root(), "user.email").as_deref() == Some(by.as_str());
@@ -2226,7 +2226,7 @@ fn cmd_lock(board: &Board, reference: &str) -> Result<()> {
 /// `rite check` (ticket 066): tickets whose repository and branch type don't
 /// go together. Reads only; fixing one is `rite set`.
 fn cmd_check(board: &Board) -> Result<()> {
-    let found = agile_md::pairing::mismatched(board)?;
+    let found = rite_lib::pairing::mismatched(board)?;
     if found.is_empty() {
         if board.is_tickets_board() {
             println!("every ticket's repository and branch type go together");
@@ -2258,7 +2258,7 @@ fn cmd_draft(board: &Board, reference: &str, draft: bool) -> Result<()> {
     let verb = if draft { "draft" } else { "ready" };
     // Not while its repository and branch type don't go together (ticket 066).
     if !draft {
-        agile_md::pairing::ready(board, &task)?;
+        rite_lib::pairing::ready(board, &task)?;
     }
     with_auto_commit(board, verb, &id_display, &title, || {
         let changed = task.set_draft(task.hash()?, draft)?;
@@ -2295,7 +2295,7 @@ fn cmd_unlock(board: &Board, reference: &str, force: bool) -> Result<()> {
 }
 
 /// Move a task into todo/ and put the working tree on its branch. The work
-/// lives in `agile_md::transition` so every front end does exactly the
+/// lives in `rite_lib::transition` so every front end does exactly the
 /// same; this only prints what it reports.
 fn cmd_enter_todo(
     board: &Board,
@@ -2340,7 +2340,7 @@ fn cmd_link(
     remove: bool,
     one_way: bool,
 ) -> Result<()> {
-    let kind = agile_md::links::LinkType::parse(kind)
+    let kind = rite_lib::links::LinkType::parse(kind)
         .with_context(|| format!("unknown link type '{kind}'"))?;
     let task = board.find(reference)?;
     let mut others = Vec::new();
@@ -2360,7 +2360,7 @@ fn cmd_link(
 /// `rite link <ref> <ref>... --replace OLD --type NEW` (ticket 213): change
 /// each link's type on both ends, in one commit.
 fn cmd_relink(board: &Board, reference: &str, to: &[String], old: &str, new: &str) -> Result<()> {
-    use agile_md::links::LinkType;
+    use rite_lib::links::LinkType;
     let old = LinkType::parse(old).with_context(|| format!("unknown link type '{old}'"))?;
     let new = LinkType::parse(new).with_context(|| format!("unknown link type '{new}'"))?;
     let task = board.find(reference)?;
@@ -2535,7 +2535,7 @@ fn display(value: &str) -> String {
 }
 
 fn cmd_group(board: &Board, command: GroupCmd) -> Result<()> {
-    use agile_md::group::{Group, Kind, State};
+    use rite_lib::group::{Group, Kind, State};
     match command {
         GroupCmd::List => {
             let groups = board.groups()?;
@@ -2569,7 +2569,7 @@ fn cmd_group(board: &Board, command: GroupCmd) -> Result<()> {
                     name: name.clone(),
                     kind: Kind::Epic,
                     description: description.clone(),
-                    days: agile_md::group::DEFAULT_DAYS,
+                    days: rite_lib::group::DEFAULT_DAYS,
                     state: State::Pending,
                 };
                 board.create_group(&group)?;
@@ -2596,12 +2596,12 @@ fn cmd_group(board: &Board, command: GroupCmd) -> Result<()> {
         }),
         GroupCmd::Start { name } => with_auto_commit(board, "group-start", &name, "", || {
             // Refused while its tickets require others outside it (ticket 214).
-            agile_md::requires::start_sprint(board, &name)?;
+            rite_lib::requires::start_sprint(board, &name)?;
             println!("{name} started — its tickets are now fixed");
             Ok(())
         }),
         GroupCmd::Close { name } => {
-            use agile_md::{documents, sprints, stats};
+            use rite_lib::{documents, sprints, stats};
             let now = stats::now();
             let repo = board
                 .repo_root()
@@ -2639,7 +2639,7 @@ fn cmd_group(board: &Board, command: GroupCmd) -> Result<()> {
         }
         GroupCmd::Backfill { name, points } => {
             with_auto_commit(board, "group-backfill", &name, "", || {
-                let filed = agile_md::sprints::backfill(board, &name, points)?;
+                let filed = rite_lib::sprints::backfill(board, &name, points)?;
                 println!("backfilled {name}: {}", filed.join(", "));
                 Ok(())
             })
@@ -2781,7 +2781,7 @@ fn cmd_auto_priority(board: &Board, action: Option<&str>, days: &[u32]) -> Resul
         );
         println!("{}", time_limits_line(settings.time_limits()));
         for task in board.tasks()? {
-            if let Some(note) = agile_md::auto_priority::note(board, &task) {
+            if let Some(note) = rite_lib::auto_priority::note(board, &task) {
                 println!("{}: {note}", task.id_display());
             }
         }
@@ -2878,7 +2878,7 @@ fn cmd_require_version(board: &Board, version: Option<&str>, clear: bool, yes: b
         }
         return Ok(());
     };
-    let version = agile_md::compat::check_required(version)?;
+    let version = rite_lib::compat::check_required(version)?;
     let warning = format!(
         "Everyone on a KanRite version older than {version} will only be able to read this project until they update. Continue?"
     );
@@ -3093,7 +3093,7 @@ enum RepoAction {
 /// Makes or connects a repository for the project (ticket 228), in one
 /// commit on the tickets repository with the ticket it's for.
 fn cmd_repo(board: &Board, action: RepoAction) -> Result<()> {
-    use agile_md::new_repo::{self, NewRepo};
+    use rite_lib::new_repo::{self, NewRepo};
     let RepoAction::New {
         name,
         description,
@@ -3251,7 +3251,7 @@ fn column_list(board: &Board, name: &str) -> String {
 /// Lists the board's columns, or changes them (ticket 224), each change
 /// committed like a setting.
 fn cmd_column(board: &Board, action: Option<ColumnAction>) -> Result<()> {
-    use agile_md::columns::{self, Position};
+    use rite_lib::columns::{self, Position};
     let position = |after: Option<String>, before: Option<String>| -> Result<Position> {
         Ok(match (after, before) {
             (Some(a), _) => Position::After(find_column(board, &a)?),
@@ -3280,8 +3280,8 @@ fn cmd_column(board: &Board, action: Option<ColumnAction>) -> Result<()> {
             let workflow = board.workflow();
             let label = |c: Column| workflow.label(c);
             match workflow.flow() {
-                agile_md::workflow::Flow::Any => println!("flow: any (any column to any other)"),
-                agile_md::workflow::Flow::Next => {
+                rite_lib::workflow::Flow::Any => println!("flow: any (any column to any other)"),
+                rite_lib::workflow::Flow::Next => {
                     let extra: Vec<String> = workflow
                         .moves()
                         .iter()
@@ -3305,7 +3305,7 @@ fn cmd_column(board: &Board, action: Option<ColumnAction>) -> Result<()> {
             Ok(())
         }
         Some(ColumnAction::Flow { flow: Some(flow) }) => {
-            let flow = agile_md::workflow::Flow::parse(&flow)
+            let flow = rite_lib::workflow::Flow::parse(&flow)
                 .with_context(|| format!("'{flow}' isn't a flow: next or any"))?;
             with_auto_commit(board, "column", "flow", flow.as_str(), || {
                 columns::set_flow(board, flow)
@@ -3321,7 +3321,7 @@ fn cmd_column(board: &Board, action: Option<ColumnAction>) -> Result<()> {
             })?;
             let w = board.workflow();
             println!("allowed {} → {}", w.label(f), w.label(t));
-            if w.flow() == agile_md::workflow::Flow::Any {
+            if w.flow() == rite_lib::workflow::Flow::Any {
                 eprintln!("rite: the flow is any, so every move is allowed anyway");
             }
             Ok(())
@@ -3470,13 +3470,13 @@ enum TagsAction {
 /// Lists the project's tags with how many tickets on its boards carry each,
 /// or changes the list. Every change is committed like any other setting.
 fn cmd_tags(board: &Board, action: Option<TagsAction>) -> Result<()> {
-    let repos = agile_md::model::find_repos()?;
+    let repos = rite_lib::model::find_repos()?;
     let boards: Vec<&Board> = repos.repos.iter().map(|(_, _, board)| board).collect();
     match action {
         None => {
             let settings = board_settings::load(board);
             let listed = settings.tags();
-            let counts = agile_md::model::tag_counts(&boards)?;
+            let counts = rite_lib::model::tag_counts(&boards)?;
             if listed.is_empty() {
                 println!(
                     "nothing listed yet: only the built-in DRAFT and TRIAGE; `rite tags add <TAG>` adds one"
@@ -3520,7 +3520,7 @@ fn cmd_tags(board: &Board, action: Option<TagsAction>) -> Result<()> {
         Some(TagsAction::Remove { tag }) => {
             let mut removed = String::new();
             with_auto_commit(board, "tags", "remove", &task::normalize_tag(&tag), || {
-                removed = agile_md::model::remove_unused_tag(board, &boards, &tag)?;
+                removed = rite_lib::model::remove_unused_tag(board, &boards, &tag)?;
                 Ok(())
             })?;
             println!("removed {removed}");
@@ -3586,8 +3586,8 @@ fn register_board(
     project: Option<&str>,
     removing: Option<&str>,
 ) -> Result<Board> {
-    let dir = agile_md::current_project::project_dir()?;
-    let projects = agile_md::current_project::projects(&dir);
+    let dir = rite_lib::current_project::project_dir()?;
+    let projects = rite_lib::current_project::projects(&dir);
     if let Some(name) = project {
         let entry = projects.iter().find(|p| p.name == name).ok_or_else(|| {
             let names: Vec<&str> = projects.iter().map(|p| p.name.as_str()).collect();
@@ -3608,7 +3608,7 @@ fn register_board(
     let current = board_settings::load(&board)
         .project()
         .map(str::to_string)
-        .unwrap_or_else(|| agile_md::current_project::project_name(board.repo_root()));
+        .unwrap_or_else(|| rite_lib::current_project::project_name(board.repo_root()));
     let repo_name = match removing {
         Some(name) => name.to_string(),
         None => {
@@ -3653,7 +3653,7 @@ fn register_board(
 
 /// `rite clone [name | --all]` (ticket 108).
 fn cmd_clone(board: &Board, name: Option<&str>, all: bool) -> Result<()> {
-    let missing = agile_md::clone::missing(board);
+    let missing = rite_lib::clone::missing(board);
     let names: Vec<String> = match (name, all) {
         (Some(name), _) => vec![name.to_string()],
         (None, true) => missing,
@@ -3675,7 +3675,7 @@ fn cmd_clone(board: &Board, name: Option<&str>, all: bool) -> Result<()> {
     }
     let mut failed = Vec::new();
     for name in &names {
-        match agile_md::clone::clone_repo(board, name) {
+        match rite_lib::clone::clone_repo(board, name) {
             Ok(cloned) => {
                 if cloned.already_there {
                     println!(
@@ -3746,7 +3746,7 @@ fn pick_repository(board: &Board) -> Result<String> {
     }
     let (here, missing): (Vec<String>, Vec<String>) = declared
         .into_iter()
-        .partition(|name| agile_md::registry::clone_of(&board.root, name).is_some());
+        .partition(|name| rite_lib::registry::clone_of(&board.root, name).is_some());
     if !missing.is_empty() {
         eprintln!(
             "not cloned on this machine, so not offered: {}",
@@ -3815,7 +3815,7 @@ fn resolve_assignee(repo: &Path, who: Option<&str>) -> String {
 /// (ticket 157): everything [`sync_purpose`] calls a write, plus the
 /// settings commands it reads for, when they're given a value.
 fn changes_board(command: &Cmd) -> bool {
-    sync_purpose(command) == agile_md::sync::Purpose::Write
+    sync_purpose(command) == rite_lib::sync::Purpose::Write
         || matches!(
             command,
             Cmd::WipLimit { .. }
@@ -3846,8 +3846,8 @@ fn changes_board(command: &Cmd) -> bool {
 /// clone that can't be brought up to date) or only looks at it (catch up if
 /// it's cheap, and warn rather than refuse). A destination verb or an epic
 /// name with a ticket ref moves it; without one it lists.
-fn sync_purpose(command: &Cmd) -> agile_md::sync::Purpose {
-    use agile_md::sync::Purpose::{Lookup, Read, Write};
+fn sync_purpose(command: &Cmd) -> rite_lib::sync::Purpose {
+    use rite_lib::sync::Purpose::{Lookup, Read, Write};
     let moves = |task: &Option<String>| if task.is_some() { Write } else { Read };
     match command {
         Cmd::Show { task: Some(_) } => Lookup,
@@ -3922,7 +3922,7 @@ fn ensure_board() -> Result<Board> {
     if board.root.is_dir() {
         return Ok(board);
     }
-    let create = if agile_md::renamed::var("RITE_YES").as_deref() == Ok("1") {
+    let create = if rite_lib::renamed::var("RITE_YES").as_deref() == Ok("1") {
         true
     } else if form::available() {
         eprintln!("No task board found at {}", board.root.display());
@@ -3965,15 +3965,15 @@ fn resolve(
 /// Link a new ticket to each ticket it requires, both ends.
 fn requires_links(
     board: &Board,
-    task: &agile_md::task::Task,
+    task: &rite_lib::task::Task,
     refs: &[String],
 ) -> Result<Vec<String>> {
     let mut lines = Vec::new();
     for reference in refs {
         let other = board.find(reference)?;
-        lines.extend(agile_md::links::apply(
+        lines.extend(rite_lib::links::apply(
             task,
-            agile_md::links::LinkType::Requires,
+            rite_lib::links::LinkType::Requires,
             &other,
             false,
             false,
@@ -3988,10 +3988,10 @@ fn cmd_new(board: &Board, args: NewArgs) -> Result<()> {
     let requires = args.requires.clone();
     // Checked before anything is written (ticket 143).
     if let Some(due) = &args.due {
-        agile_md::recur::parse_date(due)?;
+        rite_lib::recur::parse_date(due)?;
     }
     if let Some(rule) = &args.recur {
-        agile_md::recur::Every::parse(rule)?;
+        rite_lib::recur::Every::parse(rule)?;
     }
     for reference in &requires {
         board.find(reference)?;
@@ -4171,7 +4171,7 @@ fn cmd_new(board: &Board, args: NewArgs) -> Result<()> {
     }
     // Due soon: straight to todo (ticket 253), in the same commit.
     let moved = args.due.as_ref().and_then(|_| {
-        agile_md::task::Task::from_path(&created.task.path, created.task.column)
+        rite_lib::task::Task::from_path(&created.task.path, created.task.column)
             .and_then(|dated| transition::straight_to_todo(board, &dated))
     });
     // What it requires (ticket 214), linked both ways in the same commit.
@@ -4224,7 +4224,7 @@ fn cmd_import(board: &Board, path: &Path, dry_run: bool) -> Result<()> {
     }
     // Anything a board has is enough (ticket 251): some of its column
     // folders, or tickets lying loose in it.
-    if !agile_md::import::looks_importable(path) {
+    if !rite_lib::import::looks_importable(path) {
         bail!(
             "{} has nothing to import: no backlog/, todo/, doing/ or done/ folder, and no tickets (NNN-title.md) in it",
             path.display()
@@ -4235,10 +4235,10 @@ fn cmd_import(board: &Board, path: &Path, dry_run: bool) -> Result<()> {
     }
     let detail = format!("from {}", path.display());
     let summary = if dry_run {
-        agile_md::import::import(board, path, true)?
+        rite_lib::import::import(board, path, true)?
     } else {
         with_auto_commit(board, "import", "tickets", &detail, || {
-            agile_md::import::import(board, path, false)
+            rite_lib::import::import(board, path, false)
         })?
     };
     let left_out: Vec<String> = summary
@@ -4272,7 +4272,7 @@ fn cmd_import(board: &Board, path: &Path, dry_run: bool) -> Result<()> {
         );
     }
     if !dry_run
-        && let Some(log) = agile_md::import_log::append(
+        && let Some(log) = rite_lib::import_log::append(
             &here,
             &format!("rite import tickets {}", path.display()),
             &left_out,
@@ -4336,7 +4336,7 @@ fn cmd_issues(
     label: Option<&str>,
     dry_run: bool,
 ) -> Result<()> {
-    use agile_md::import_issues;
+    use rite_lib::import_issues;
     if let Some(action) = action {
         let on = action == "on";
         with_auto_commit(board, "settings", "import-issues", action, || {
@@ -4397,7 +4397,7 @@ fn cmd_import_documents(path: Option<&Path>, dry_run: bool) -> Result<()> {
         );
     };
     let here = env::current_dir().context("reading the current directory")?;
-    let repo = agile_md::git::checked(&here, &["rev-parse", "--show-toplevel"])
+    let repo = rite_lib::git::checked(&here, &["rev-parse", "--show-toplevel"])
         .map(PathBuf::from)
         .ok();
     let name = |root: &Path| {
@@ -4424,10 +4424,10 @@ fn cmd_import_documents(path: Option<&Path>, dry_run: bool) -> Result<()> {
         && name(&repo)
             == format!(
                 "{}-documents",
-                agile_md::current_project::project_name(board.repo_root())
+                rite_lib::current_project::project_name(board.repo_root())
             )
     {
-        agile_md::archive::ensure_writable(&board)?;
+        rite_lib::archive::ensure_writable(&board)?;
     }
     let here = dunce::canonicalize(&here).unwrap_or(here);
     let root = dunce::canonicalize(&repo).unwrap_or(repo);
@@ -4435,7 +4435,7 @@ fn cmd_import_documents(path: Option<&Path>, dry_run: bool) -> Result<()> {
         .strip_prefix(&root)
         .map(|rel| rel.to_string_lossy().replace('\\', "/"))
         .unwrap_or_default();
-    let plan = agile_md::import_documents::plan(path, &root, Some(&into))?;
+    let plan = rite_lib::import_documents::plan(path, &root, Some(&into))?;
     let repo_name = name(&root);
     let left_out: Vec<String> = plan
         .clashes
@@ -4462,7 +4462,7 @@ fn cmd_import_documents(path: Option<&Path>, dry_run: bool) -> Result<()> {
         return Ok(());
     }
     // Straight to main, pushed (ADR 0007, ticket 170).
-    let outcome = agile_md::import_documents::apply(&plan)?;
+    let outcome = rite_lib::import_documents::apply(&plan)?;
     log_left_out(&here, path, &left_out)?;
     println!(
         "imported {count} {files} into {repo_name} on {}{}",
@@ -4477,7 +4477,7 @@ fn cmd_import_documents(path: Option<&Path>, dry_run: bool) -> Result<()> {
 
 /// What a documents import left out, into `import.log` where it ran.
 fn log_left_out(here: &Path, path: &Path, left_out: &[String]) -> Result<()> {
-    if let Some(log) = agile_md::import_log::append(
+    if let Some(log) = rite_lib::import_log::append(
         here,
         &format!("rite import documents {}", path.display()),
         left_out,
@@ -4495,9 +4495,9 @@ fn log_left_out(here: &Path, path: &Path, left_out: &[String]) -> Result<()> {
 /// `rite stats` (ticket 233): counts over a period and each running
 /// sprint's burn, for every board of the project.
 fn cmd_stats(days: Option<u32>) -> Result<()> {
-    use agile_md::stats;
+    use rite_lib::stats;
     let days = days.unwrap_or_else(stats::period);
-    let found = agile_md::model::find_repos()?;
+    let found = rite_lib::model::find_repos()?;
     let boards: Vec<&Board> = found.repos.iter().map(|(_, _, b)| b).collect();
     let now = stats::now();
     let c = stats::counts(&boards, days, now)?;
@@ -4680,8 +4680,8 @@ fn cmd_templates(board: &Board, command: TemplateCmd) -> Result<()> {
 /// both `rite edit` and the form's body step. GUI-only, so this lives in the
 /// CLI rather than rite-lib: the GUI never spawns an editor.
 fn editor_command() -> String {
-    let config = agile_md::settings::Config::load();
-    agile_md::settings::resolved("EDITOR", &config, "editor")
+    let config = rite_lib::settings::Config::load();
+    rite_lib::settings::resolved("EDITOR", &config, "editor")
         .filter(|editor| !editor.is_empty())
         .unwrap_or_else(|| "vi".to_string())
 }

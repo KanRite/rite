@@ -7,12 +7,12 @@
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 
-use agile_md::board::{Board, Column, Kind};
-use agile_md::board_settings;
-use agile_md::current_project;
-use agile_md::group::{GROUP_FILE, State};
-use agile_md::model::find_repos;
-use agile_md::task::Task;
+use rite_lib::board::{Board, Column, Kind};
+use rite_lib::board_settings;
+use rite_lib::current_project;
+use rite_lib::group::{GROUP_FILE, State};
+use rite_lib::model::find_repos;
+use rite_lib::task::Task;
 use rite_ui_model::epic::{GroupKind, Place};
 use rite_ui_model::wip::WipLimits;
 use rite_ui_model::{self as ui, BoardColumn, Epic, Lock, RepoInfo, TicketSummary};
@@ -147,7 +147,7 @@ impl Project {
                     .tasks_in_group(&group.name)
                     .map_err(err)?
                     .iter()
-                    .filter(|t| !t.column.is(agile_md::board::Kind::Done))
+                    .filter(|t| !t.column.is(rite_lib::board::Kind::Done))
                     .count();
                 epics.push(Epic {
                     unfinished,
@@ -200,7 +200,7 @@ impl Project {
             projects: self.projects(),
             ticket_repos,
             users: board_settings::load(&self.repos[0].1).user_names(),
-            me: agile_md::git::config(self.repos[0].1.repo_root(), "user.name"),
+            me: rite_lib::git::config(self.repos[0].1.repo_root(), "user.name"),
             tags,
             tags_only: settings.only_listed_tags(),
             admin: admin_access(&self.repos[0].1),
@@ -213,7 +213,7 @@ impl Project {
             },
             due_to_todo_days: settings.due_to_todo_days(),
             backlog_always_shown: settings.backlog_always_shown(),
-            needs_version: agile_md::compat::needed(own_board).map(|v| v.to_string()),
+            needs_version: rite_lib::compat::needed(own_board).map(|v| v.to_string()),
             priority_override: settings.priority_override(),
             archived: settings.archived(),
         })
@@ -227,17 +227,17 @@ impl Project {
     /// The project's listed tags and the tags in use on its boards, with
     /// counts (ticket 122).
     fn tag_uses(&self, settings: &board_settings::BoardSettings) -> Result<Vec<ui::TagUse>> {
-        let counts = agile_md::model::tag_counts(&self.boards()).map_err(err)?;
+        let counts = rite_lib::model::tag_counts(&self.boards()).map_err(err)?;
         let listed = settings.tags();
         let mut names: std::collections::BTreeSet<String> = listed.iter().cloned().collect();
         names.extend(counts.keys().cloned());
-        names.extend(agile_md::task::RESERVED_TAGS.iter().map(|t| t.to_string()));
+        names.extend(rite_lib::task::RESERVED_TAGS.iter().map(|t| t.to_string()));
         Ok(names
             .into_iter()
             .map(|name| ui::TagUse {
                 count: counts.get(&name).copied().unwrap_or(0),
                 listed: listed.contains(&name),
-                reserved: agile_md::task::is_reserved_tag(&name),
+                reserved: rite_lib::task::is_reserved_tag(&name),
                 name,
             })
             .collect())
@@ -255,7 +255,7 @@ impl Project {
         names
             .into_iter()
             .map(|name| ui::RepoChoice {
-                available: agile_md::registry::clone_of(here, &name).is_some(),
+                available: rite_lib::registry::clone_of(here, &name).is_some(),
                 name,
             })
             .collect()
@@ -353,7 +353,7 @@ pub fn ui_workflow(board: &Board) -> ui::Workflow {
     let settings = board_settings::load(board);
     let workflow = board.workflow();
     ui::Workflow {
-        any: workflow.flow() == agile_md::workflow::Flow::Any,
+        any: workflow.flow() == rite_lib::workflow::Flow::Any,
         moves: workflow
             .moves()
             .iter()
@@ -419,7 +419,7 @@ pub fn task_at(board: &Board, place: &Place, file: &str) -> Result<Task> {
 /// project's `admins` list is read fresh each time, so editing it shows at
 /// once.
 pub fn admin_access(board: &Board) -> ui::AdminAccess {
-    use agile_md::access::{self, GitHub};
+    use rite_lib::access::{self, GitHub};
     static ASKED: Mutex<Vec<(std::path::PathBuf, GitHub)>> = Mutex::new(Vec::new());
     let decided = access::admin_access_with(board, |repo| {
         let mut asked = ASKED

@@ -1,4 +1,4 @@
-//! Compatibility between agile-md versions (ticket 193).
+//! Compatibility between KanRite versions (ticket 193).
 //!
 //! **A breaking change is always the user's choice.** Every release reads
 //! what earlier ones wrote, an older build keeps working on data a newer
