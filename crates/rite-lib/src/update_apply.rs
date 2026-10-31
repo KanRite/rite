@@ -13,7 +13,7 @@
 //!   writes `rite-uninstall` beside `rite` (`install.ps1` on Windows writes
 //!   `rite-uninstall.ps1`, ticket 282; 4.x wrote `amd-uninstall`, which is
 //!   still read, ticket 312) and records in it how it installed
-//!   (`# agile-md install: release` or `source`). Anything else — a source
+//!   (`# kanrite install: release` or `source`; 5.0 wrote `# agile-md install: …`, still read). Anything else — a source
 //!   build, a package manager's install, an install from before the marker
 //!   — is told how to update and left alone ([`install_dir`]).
 //! - **Verified before anything is replaced:** each release file's SHA-256
@@ -70,7 +70,12 @@ fn marker_in(dir: &Path) -> PathBuf {
 }
 
 /// The line in [`MARKER`] that a release install has.
-pub const RELEASE_INSTALL: &str = "# agile-md install: release";
+pub const RELEASE_INSTALL: &str = "# kanrite install: release";
+/// What installers before the rename (4.x and 5.0) wrote instead; still read,
+/// never written (ticket 350).
+pub const OLD_RELEASE_INSTALL: &str = "# agile-md install: release";
+const SOURCE_INSTALL: &str = "# kanrite install: source";
+const OLD_SOURCE_INSTALL: &str = "# agile-md install: source";
 
 /// How to install (or update by hand): the installer, run again. On
 /// Windows that's `install.ps1`, in PowerShell (ticket 282).
@@ -236,13 +241,19 @@ pub fn install_dir(exe: &Path) -> Install {
             ),
             reinstall: true,
         },
-        Ok(text) if text.lines().any(|l| l.trim() == RELEASE_INSTALL) => {
+        Ok(text)
+            if text.lines().any(|l| {
+                let l = l.trim();
+                l == RELEASE_INSTALL || l == OLD_RELEASE_INSTALL
+            }) =>
+        {
             Install::Managed(dir.to_path_buf())
         }
         Ok(text)
-            if text
-                .lines()
-                .any(|l| l.trim() == "# agile-md install: source") =>
+            if text.lines().any(|l| {
+                let l = l.trim();
+                l == SOURCE_INSTALL || l == OLD_SOURCE_INSTALL
+            }) =>
         {
             Install::Unmanaged {
                 why: format!(
@@ -874,6 +885,29 @@ mod tests {
         assert!(applied.failed.unwrap().1.contains("doesn't run here"));
         assert_eq!(version_of(dir.path(), "rite"), "rite 4.5.0");
         assert!(!dir.path().join("rite.previous").exists());
+    }
+
+    #[test]
+    fn both_the_new_and_the_pre_rename_marker_lines_are_read() {
+        let dir = installed("4.5.0");
+        let exe = dir.path().join("rite");
+        for (line, managed) in [
+            (RELEASE_INSTALL, true),
+            (OLD_RELEASE_INSTALL, true),
+            (SOURCE_INSTALL, false),
+            (OLD_SOURCE_INSTALL, false),
+        ] {
+            fs::write(
+                dir.path().join(MARKER),
+                format!("#!/usr/bin/env bash\n{line}\n"),
+            )
+            .unwrap();
+            assert_eq!(
+                matches!(install_dir(&exe), Install::Managed(_)),
+                managed,
+                "{line}"
+            );
+        }
     }
 
     #[test]

@@ -1,4 +1,4 @@
-//! rite — a tiny filesystem Kanban in markdown (agile-md).
+//! rite — a tiny filesystem Kanban in markdown (KanRite).
 //!
 //! Tasks are markdown files that move between `todo/`, `doing/` and `done/` in
 //! `<repo-root>/tasks`. Status is the folder; `git mv` is the audit trail; the
@@ -180,8 +180,8 @@ and can't be chosen for a ticket. `rite clone` lists them; `rite clone <name>`
 tickets repository came from (its origin, with the name swapped in), and
 registers them.
 
-Several projects can share one folder (agile-md-tickets beside
-multi-user-test-tickets). `rite project` lists them and marks the one rite
+Several projects can share one folder (acme-tickets beside
+widgets-tickets). `rite project` lists them and marks the one rite
 uses; `rite project use <name>` switches, by writing .current-project in
 that folder (this machine only, never committed). From the folder itself,
 or a code repository beside the projects, rite follows that file; inside a

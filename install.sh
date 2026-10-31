@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# agile-md installer — install the `rite` command onto your PATH.
+# KanRite installer — install the `rite` command onto your PATH.
 #
 #   ./install.sh [--dir DIR] [--version vX.Y.Z] [--from-source]
 #   curl -fsSL https://raw.githubusercontent.com/kanrite/rite/v5/install.sh | bash
@@ -76,7 +76,7 @@ SELF=""
 if [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "${BASH_SOURCE[0]}" ]; then
   SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 fi
-# A clone of agile-md, not just any directory with a Cargo.toml.
+# A clone of KanRite, not just any directory with a Cargo.toml.
 in_clone() { [ -n "${SELF}" ] && [ -f "${SELF}/crates/rite-cli/Cargo.toml" ]; }
 
 die() { printf 'install: %s\n' "$*" >&2; exit 1; }
@@ -163,9 +163,9 @@ install_launcher() {
   cat > "${apps}/riteui.desktop" <<EOF
 [Desktop Entry]
 Type=Application
-Name=agile-md
+Name=KanRite
 GenericName=Kanban board
-Comment=The agile-md desktop board
+Comment=The KanRite desktop board
 Exec="${DIR}/riteui"
 Icon=riteui
 Terminal=false
@@ -198,7 +198,7 @@ fetch_icons() {
 }
 
 # Says plainly, before anything is downloaded or changed, when this system
-# isn't one agile-md runs on, and why.
+# isn't one KanRite runs on, and why.
 check_system() {
   local os arch version major minor
   os="$(uname -s)"
@@ -207,18 +207,18 @@ check_system() {
     Linux|Darwin) ;;
     MINGW*|MSYS*|CYGWIN*|Windows_NT)
       die "this installer is for Linux and macOS. On Windows, in PowerShell: irm https://raw.githubusercontent.com/kanrite/rite/v5/install.ps1 | iex (or install inside WSL: https://learn.microsoft.com/windows/wsl/install)" ;;
-    *) die "agile-md runs on Linux and macOS; this system (${os}) isn't supported." ;;
+    *) die "KanRite runs on Linux and macOS; this system (${os}) isn't supported." ;;
   esac
   case "${arch}" in
     arm64|aarch64|x86_64|amd64) ;;
-    *) die "agile-md's downloads are for x86_64 and arm64 (aarch64) processors; this one is ${arch}. Building from source may work: see https://github.com/${REPO}/blob/main/CONTRIBUTING.md" ;;
+    *) die "KanRite's downloads are for x86_64 and arm64 (aarch64) processors; this one is ${arch}. Building from source may work: see https://github.com/${REPO}/blob/main/CONTRIBUTING.md" ;;
   esac
-  command -v git >/dev/null 2>&1 || die "agile-md needs git 2.29 or later, and git isn't installed."
+  command -v git >/dev/null 2>&1 || die "KanRite needs git 2.29 or later, and git isn't installed."
   version="$(git --version | awk '{print $3}')"
   major="${version%%.*}"
   minor="${version#*.}"; minor="${minor%%.*}"
   if [ "${major}" -lt 2 ] 2>/dev/null || { [ "${major}" -eq 2 ] && [ "${minor}" -lt 29 ]; } 2>/dev/null; then
-    die "agile-md needs git 2.29 or later; this system has git ${version}. Update git, then run the install again."
+    die "KanRite needs git 2.29 or later; this system has git ${version}. Update git, then run the install again."
   fi
 }
 
@@ -229,13 +229,13 @@ uninstaller() {
   local bin="$1" data="$2" method="${3:-}"
   cat <<HEAD
 #!/usr/bin/env bash
-# agile-md's uninstaller, written by its installer (ticket 242).
-# agile-md install: ${method:-unknown}
+# KanRite's uninstaller, written by its installer (ticket 242).
+# kanrite install: ${method:-unknown}
 #
 #   rite-uninstall [--all] [--yes]
 #
 # Removes rite, riteui, this script and riteui's launcher and icons. Then asks
-# whether to remove your agile-md settings and data too (--all: yes without
+# whether to remove your KanRite settings and data too (--all: yes without
 # asking; --yes: never asks, so with no --all they stay). Your projects (the
 # tickets, documents and ideas in your git repositories) are never touched.
 set -euo pipefail
@@ -288,7 +288,7 @@ fi
 if [ -n "${removed}" ]; then
   printf 'Removed:\n%s' "${removed}"
 else
-  printf "agile-md's programs were not in %s.\n" "${BIN}"
+  printf "KanRite's programs were not in %s.\n" "${BIN}"
 fi
 
 # Your own settings and data: kept unless you say. Called kanrite since
@@ -304,7 +304,7 @@ for base in "${XDG_CONFIG_HOME:-${HOME}/.config}" "${XDG_STATE_HOME:-${HOME}/.lo
 done
 if [ "${#present[@]}" -gt 0 ]; then
   if [ "${ALL}" = "0" ] && [ "${ASK}" = "1" ] && { : </dev/tty; } 2>/dev/null; then
-    printf '\nYour agile-md settings and data are still here:\n'
+    printf '\nYour KanRite settings and data are still here:\n'
     printf '  %s\n' "${present[@]}"
     if [ -n "$(ls -A "${state}/recovered" 2>/dev/null)" ]; then
       printf '  (%s/recovered holds tickets saved after a push conflict: look before removing.)\n' "${state}"
@@ -450,7 +450,7 @@ elif ! download_release; then
     printf 'No prebuilt binary available; falling back to a source build.\n' >&2
     build_from_source
   else
-    die "couldn't download agile-md ${VERSION} for $(target_triple) from https://github.com/${REPO}/releases — check your connection, or that the version exists."
+    die "couldn't download KanRite ${VERSION} for $(target_triple) from https://github.com/${REPO}/releases — check your connection, or that the version exists."
   fi
 fi
 

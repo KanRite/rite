@@ -51,7 +51,7 @@ Check 'amd.exe, the 4.x name, runs rite and says it is now rite' {
     $out -match 'amd is now rite' -and $out -match 'rite '
 }
 Check 'the uninstaller marks it a release install' {
-    (Get-Content -LiteralPath $uninstaller) -contains '# agile-md install: release'
+    (Get-Content -LiteralPath $uninstaller) -contains '# kanrite install: release'
 }
 Check 'the folder is on the user PATH' { (UserPath) -contains $dir }
 Check 'there is a Start menu shortcut to riteui' {

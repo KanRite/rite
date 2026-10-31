@@ -361,7 +361,7 @@ redundant. Their history is in git if it is ever wanted again.
   191). `install_dir(exe)`: only a folder whose `MARKER` (`rite-uninstall`;
   `rite-uninstall.ps1` on Windows, ticket 282), or else `OLD_MARKER`
   (4.x's `amd-uninstall`, ticket 312), says
-  `# agile-md install: release` (install.sh now writes `release` or
+  `# kanrite install: release` (ticket 350; 4.x and 5.0 wrote `# agile-md install: …`, still read; install.sh now writes `release` or
   `source`, `METHOD`) is `Managed`; anything else is `Unmanaged {why,
   reinstall}` (reinstall: the installer command is the fix; not for a
   source build). `INSTALL_COMMAND` is per OS (the `irm | iex` line on
@@ -767,7 +767,7 @@ redundant. Their history is in git if it is ever wanted again.
   column, a documents repository and a shared handbook, ideas with votes and
   notes, a roadmap on track, locks only in doing, creation dates spread back. Own
   `XDG_CONFIG_HOME` in `DIR/config`; refuses a DIR it didn't make
-  (`.agile-md-demo` marker). Shellchecked in CI.
+  (`.kanrite-demo` marker; `.agile-md-demo` is still accepted). Shellchecked in CI.
 - `SECURITY.md` (ticket 245): fixes in the latest 4.x only, reports
   privately through the Security tab's advisories, acknowledged within 7
   days; covers rite, `rite mcp`, riteui, `install.sh`/`rite-uninstall` and the
@@ -1885,7 +1885,7 @@ changes):
   `agile-md` entry in Claude Code, Cursor, Codex or Gemini CLI and says so, and
   `rite mcp setup --fix` swaps Claude Code's through `claude mcp` (ticket 350;
   rite never writes another tool's config). Left as they are, because older builds or people's
-  machines depend on them: the `# agile-md install:` marker, `.agile-md`
+  machines depend on them: the `.agile-md`
   and `.agile-md-pins/` in documents repositories, `.git/amd-*` files, the
   zip names and the website, which is live
   as soon as it merges and so changes with the release (316).
