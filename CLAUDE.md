@@ -1881,8 +1881,10 @@ changes):
   **Names people read say KanRite** (ticket 315): `--help`, messages,
   riteui's header and Preferences, the README and the user guide (whose
   "Coming from agile-md" section explains the old names). The MCP server
-  is `kanrite` (`mcp::SERVER`); `rite mcp setup` says to remove an
-  `agile-md` entry. Left as they are, because older builds or people's
+  is `kanrite` (`mcp::SERVER`); `rite mcp setup` finds an old
+  `agile-md` entry in Claude Code, Cursor, Codex or Gemini CLI and says so, and
+  `rite mcp setup --fix` swaps Claude Code's through `claude mcp` (ticket 350;
+  rite never writes another tool's config). Left as they are, because older builds or people's
   machines depend on them: the `# agile-md install:` marker, `.agile-md`
   and `.agile-md-pins/` in documents repositories, `.git/amd-*` files, the
   zip names and the website, which is live

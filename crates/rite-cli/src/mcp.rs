@@ -14,6 +14,7 @@
 
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
+use std::path::Path;
 
 use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
@@ -218,8 +219,77 @@ fn call(params: &Value) -> Value {
 /// The AI tools `rite mcp setup` knows how to connect.
 pub const CLIENTS: [&str; 5] = ["claude", "vscode", "cursor", "codex", "gemini"];
 
-/// How to connect `client` (or every one) to `rite mcp`.
-pub fn setup(client: Option<&str>) -> Result<String> {
+/// The tools that still hold the pre-5.0 `agile-md` entry, found by reading
+/// their config files under `home` (nothing is changed). VS Code keeps its
+/// servers per project, so it isn't looked at.
+pub fn old_entries(home: &Path) -> Vec<&'static str> {
+    let in_json = |path: &str| {
+        std::fs::read_to_string(home.join(path))
+            .ok()
+            .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+            .is_some_and(|v| v["mcpServers"].get(OLD_SERVER).is_some())
+    };
+    let in_codex = std::fs::read_to_string(home.join(".codex/config.toml")).is_ok_and(|text| {
+        text.lines().any(|line| {
+            let line = line.trim();
+            line == format!("[mcp_servers.{OLD_SERVER}]")
+                || line == format!("[mcp_servers.\"{OLD_SERVER}\"]")
+        })
+    });
+    [
+        ("claude", in_json(".claude.json")),
+        ("cursor", in_json(".cursor/mcp.json")),
+        ("codex", in_codex),
+        ("gemini", in_json(".gemini/settings.json")),
+    ]
+    .into_iter()
+    .filter_map(|(client, found)| found.then_some(client))
+    .collect()
+}
+
+/// `rite mcp setup --fix`: swaps Claude Code's `agile-md` entry for `kanrite`
+/// by asking `claude` to do it (`run` is given its arguments), so rite never
+/// writes another tool's config file. The other tools are told what to change.
+pub fn fix(home: &Path, mut run: impl FnMut(&[&str]) -> Result<()>) -> Result<String> {
+    let old = old_entries(home);
+    if old.is_empty() {
+        return Ok(format!(
+            "No {OLD_SERVER} entry found in Claude Code, Cursor, Codex or Gemini CLI."
+        ));
+    }
+    let mut out = String::new();
+    if old.contains(&"claude") {
+        run(&["mcp", "remove", "--scope", "user", OLD_SERVER])
+            .context("`claude mcp remove` failed; nothing was added")?;
+        run(&["mcp", "add", "--scope", "user", SERVER, "--", "rite", "mcp"])
+            .context("removed the old entry, but `claude mcp add` failed")?;
+        out.push_str(&format!(
+            "Claude Code: replaced {OLD_SERVER} with {SERVER}. Restart it to see the new tools.\n"
+        ));
+    }
+    for client in old.iter().filter(|c| **c != "claude") {
+        out.push_str(&format!(
+            "{client}: still has {OLD_SERVER}; change it by hand (`rite mcp setup {client}` shows the new entry).\n"
+        ));
+    }
+    Ok(out.trim_end().to_string())
+}
+
+/// Runs `claude` with `args`, for [`fix`].
+pub fn run_claude(args: &[&str]) -> Result<()> {
+    let status = std::process::Command::new("claude")
+        .args(args)
+        .status()
+        .context("running `claude` (is Claude Code installed and on the PATH?)")?;
+    if !status.success() {
+        bail!("`claude {}` exited with {status}", args.join(" "));
+    }
+    Ok(())
+}
+
+/// How to connect `client` (or every one) to `rite mcp`. `home` is where the
+/// old entry is looked for, if given.
+pub fn setup(client: Option<&str>, home: Option<&Path>) -> Result<String> {
     let rite = "rite";
     let mut out = String::new();
     let all = client.is_none();
@@ -262,10 +332,24 @@ pub fn setup(client: Option<&str>) -> Result<String> {
             "Any other tool: run `rite mcp` as a stdio MCP server, started in the project's folder.\n\n",
         );
     }
-    out.push_str(&format!(
-        "Connected before 5.0? The server was called {OLD_SERVER} then: remove that entry \
-         (for Claude Code, `claude mcp remove --scope user {OLD_SERVER}`), or the tools appear twice."
-    ));
+    let found: Vec<_> = home
+        .map(old_entries)
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|c| wants(c))
+        .collect();
+    if found.is_empty() {
+        out.push_str(&format!(
+            "Connected before 5.0? The server was called {OLD_SERVER} then: remove that entry \
+             (for Claude Code, `claude mcp remove --scope user {OLD_SERVER}`), or the tools appear twice."
+        ));
+    } else {
+        out.push_str(&format!(
+            "Found the old {OLD_SERVER} entry in: {}. Its tools appear twice until it goes. \
+             `rite mcp setup --fix` replaces Claude Code's; change the others by hand.",
+            found.join(", ")
+        ));
+    }
     Ok(out.trim_end().to_string())
 }
 
@@ -319,11 +403,11 @@ mod tests {
 
     #[test]
     fn setup_names_each_tool() {
-        let all = setup(None).unwrap();
+        let all = setup(None, None).unwrap();
         for name in ["Claude Code", "VS Code", "Cursor", "Codex", "Gemini"] {
             assert!(all.contains(name), "{name}");
         }
-        let claude = setup(Some("claude")).unwrap();
+        let claude = setup(Some("claude"), None).unwrap();
         assert!(
             claude.starts_with(
                 "Claude Code (in a terminal, or riteui's AI tab):\n  claude mcp add --scope user kanrite -- rite mcp\n\n"
@@ -332,6 +416,95 @@ mod tests {
         );
         assert!(claude.contains("claude mcp remove --scope user agile-md"));
         assert!(!all.contains("\"agile-md\"") && all.contains("[mcp_servers.kanrite]"));
-        assert!(setup(Some("emacs")).is_err());
+        assert!(setup(Some("emacs"), None).is_err());
+    }
+
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+    fn home_with(files: &[(&str, &str)]) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "rite-mcp-home-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        for (path, text) in files {
+            let path = dir.join(path);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, text).unwrap();
+        }
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn the_old_entry_is_found_in_each_tool_and_nothing_else_is() {
+        let home = home_with(&[
+            (
+                ".claude.json",
+                r#"{"mcpServers":{"agile-md":{"command":"amd"}}}"#,
+            ),
+            (".cursor/mcp.json", r#"{"mcpServers":{"kanrite":{}}}"#),
+            (
+                ".codex/config.toml",
+                "[mcp_servers.agile-md]\ncommand = \"amd\"\n",
+            ),
+            (".gemini/settings.json", "not json"),
+        ]);
+        assert_eq!(old_entries(&home), vec!["claude", "codex"]);
+        let said = setup(None, Some(&home)).unwrap();
+        assert!(
+            said.contains("Found the old agile-md entry in: claude, codex"),
+            "{said}"
+        );
+        let only = setup(Some("cursor"), Some(&home)).unwrap();
+        assert!(!only.contains("Found the old"), "{only}");
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn fix_swaps_claude_codes_entry_through_claude_and_names_the_rest() {
+        let home = home_with(&[
+            (".claude.json", r#"{"mcpServers":{"agile-md":{}}}"#),
+            (".cursor/mcp.json", r#"{"mcpServers":{"agile-md":{}}}"#),
+        ]);
+        let mut calls: Vec<String> = Vec::new();
+        let said = fix(&home, |args| {
+            calls.push(args.join(" "));
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(
+            calls,
+            [
+                "mcp remove --scope user agile-md",
+                "mcp add --scope user kanrite -- rite mcp"
+            ]
+        );
+        assert!(
+            said.contains("Claude Code: replaced agile-md with kanrite"),
+            "{said}"
+        );
+        assert!(said.contains("cursor: still has agile-md"), "{said}");
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn fix_adds_nothing_when_the_remove_fails_and_does_nothing_when_clean() {
+        let home = home_with(&[(".claude.json", r#"{"mcpServers":{"agile-md":{}}}"#)]);
+        let mut calls = 0;
+        let err = fix(&home, |_| {
+            calls += 1;
+            anyhow::bail!("no claude")
+        })
+        .unwrap_err();
+        assert_eq!(calls, 1);
+        assert!(format!("{err:#}").contains("nothing was added"));
+        let _ = std::fs::remove_dir_all(&home);
+
+        let clean = home_with(&[(".claude.json", r#"{"mcpServers":{"kanrite":{}}}"#)]);
+        let said = fix(&clean, |_| panic!("must not run")).unwrap();
+        assert!(said.starts_with("No agile-md entry"), "{said}");
+        let _ = std::fs::remove_dir_all(&clean);
     }
 }

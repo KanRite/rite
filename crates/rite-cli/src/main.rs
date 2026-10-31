@@ -1147,6 +1147,10 @@ enum McpAction {
         /// claude, vscode, cursor, codex or gemini; every one when left out
         #[arg(value_name = "TOOL", value_parser = PossibleValuesParser::new(mcp::CLIENTS))]
         tool: Option<String>,
+        /// Replace Claude Code's old `agile-md` entry with `kanrite` (through
+        /// `claude mcp`); the other tools are only told what to change
+        #[arg(long)]
+        fix: bool,
     },
 }
 
@@ -1370,8 +1374,14 @@ fn run() -> Result<()> {
     if let Cmd::Mcp { action } = command {
         return match action {
             None => mcp::run(),
-            Some(McpAction::Setup { tool }) => {
-                println!("{}", mcp::setup(tool.as_deref())?);
+            Some(McpAction::Setup { tool, fix }) => {
+                let home = agile_md::home::dir();
+                if fix {
+                    let home = home.context("no home folder to look in")?;
+                    println!("{}", mcp::fix(&home, mcp::run_claude)?);
+                } else {
+                    println!("{}", mcp::setup(tool.as_deref(), home.as_deref())?);
+                }
                 Ok(())
             }
         };

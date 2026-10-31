@@ -1059,6 +1059,12 @@ still reads a board 5.x has written.
   claude mcp add --scope user kanrite -- rite mcp
   ```
 
-  `rite mcp setup` prints the lines for each tool.
+  `rite mcp setup` prints the lines for each tool, and says when it finds
+  the old `agile-md` entry in Claude Code, Cursor, Codex or Gemini CLI.
+  `rite mcp setup --fix` swaps Claude Code's for you, by running the two
+  commands above through `claude`; it never edits another tool's config
+  file, so for the others it says what to change. Restart the tool
+  afterwards. If your settings allow `mcp__agile-md__*` tools, change
+  those rules to `mcp__kanrite__*`.
 - **The uninstaller** is `rite-uninstall`; installing 5.x replaces 4.x's
   `amd-uninstall`, and either removes the old names too.

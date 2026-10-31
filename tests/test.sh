@@ -2991,6 +2991,14 @@ assert "screen says riteui isn't open on the project when no window has written 
     && printf '%s' \"\$out\" | grep -q \"riteui isn't open\""
 assert "rite mcp setup prints how to connect an AI tool" \
   bash -c "'${AMD}' mcp setup claude | grep -qx '  claude mcp add --scope user kanrite -- rite mcp' && '${AMD}' mcp setup | grep -q Codex"
+oldmcp="$(mktemp -d)"
+printf '{"mcpServers":{"agile-md":{}}}' > "${oldmcp}/.claude.json"
+assert "rite mcp setup says when a tool still holds the old agile-md entry" \
+  bash -c "HOME='${oldmcp}' '${AMD}' mcp setup claude | grep -q 'Found the old agile-md entry in: claude'"
+rm -f "${oldmcp}/.claude.json"
+assert "rite mcp setup --fix changes nothing when there is no old entry" \
+  bash -c "HOME='${oldmcp}' '${AMD}' mcp setup --fix | grep -q 'No agile-md entry'"
+rm -rf "${oldmcp}"
 assert "an archived project's tickets can't be changed through rite mcp" \
   bash -c "cd '${mcp}/board' && echo 'archived = on' >> .settings && out=\$(printf '%s\\n' '{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"create_ticket\",\"arguments\":{\"title\":\"No\"}}}' | '${AMD}' mcp 2>/dev/null) && printf '%s' \"\$out\" | grep -q '\"isError\":true' && printf '%s' \"\$out\" | grep -q archived"
 rm -rf "${mcp}"
