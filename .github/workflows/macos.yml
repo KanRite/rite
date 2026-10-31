@@ -26,6 +26,10 @@ jobs:
   macos:
     runs-on: macos-latest
     timeout-minutes: 60
+    # Reporting a scheduled run's result writes an issue (below).
+    permissions:
+      contents: read
+      issues: write
     steps:
       - uses: actions/checkout@v7
       # The desktop board is a Tauri app: WKWebView ships with macOS, so no
@@ -64,3 +68,20 @@ jobs:
       - name: CLI tests
         if: ${{ !cancelled() }}
         run: bash tests/test.sh
+      # A scheduled run that fails opens an issue (or comments on the open
+      # one), which rite's issue import turns into a TRIAGE ticket, and one
+      # that passes closes it. A run started by hand is read by whoever started
+      # it. Nothing here can notice a run that never starts: ticket 347 checks
+      # the first, and the schedule is listed under Actions.
+      - name: Open an issue for a failed scheduled run
+        if: ${{ failure() && github.event_name == 'schedule' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: scripts/macos-report.sh failed
+      - name: Close it when a scheduled run passes
+        if: ${{ success() && github.event_name == 'schedule' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: scripts/macos-report.sh passed
