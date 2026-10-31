@@ -789,7 +789,7 @@ redundant. Their history is in git if it is ever wanted again.
   font is needed to show it; the README and the site pick one with
   `<picture>`. `pages/social.png` (1280×640, under GitHub's 1 MB) is the
   site's `og:image` and the repository's social preview. The older
-  `agile-md-*`/`agilerite-*` logos stay for anything still linking them.
+  `agile-md-*` and `agilerite-*` logos were removed (ticket 350).
   `crates/rite-ui/app-icon.svg` is the desktop icon (board in blue, yellow
   and green for todo, doing, done; documents, git diamond, bulb; no
   words); after changing it, `cargo tauri icon app-icon.svg` in
