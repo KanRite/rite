@@ -1,16 +1,16 @@
 # Defaults for local `act` runs from this repo.
 #
-# The runner is the shared image published from agile-md/amd-engineering:
+# The runner is the shared image published from KanRite/kanrite-documents:
 # catthehacker/ubuntu:act-latest pinned by digest, with shellcheck baked in.
 # It is built and pushed by that repo's publish-act-runner workflow, so there
 # is nothing to build here — act pulls it once and caches it.
 #
-# Source: https://github.com/agile-md/amd-engineering/blob/main/images/act-runner/Containerfile
+# Source: https://github.com/KanRite/kanrite-documents/blob/main/images/act-runner/Containerfile
 
 # Without a -P line act asks on first run, and its "Large" option is
 # catthehacker/ubuntu:full-*, ~18GB compressed. "Micro" is node:*-slim, which
 # has no sudo, and jobs that need it fail on that image alone.
--P ubuntu-latest=ghcr.io/agile-md/act-runner:1
+-P ubuntu-latest=ghcr.io/kanrite/act-runner:1
 
 # This machine is x86_64, so linux/amd64 is native and nothing is emulated.
 # Kept explicit so the image doesn't silently change on an arm64 machine.
