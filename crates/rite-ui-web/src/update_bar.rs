@@ -1,5 +1,5 @@
 //! The update bar (ticket 192): across the top of every screen when a newer
-//! agile-md is out, in orange, a colour no accent uses. **Update** installs
+//! KanRite is out, in orange, a colour no accent uses. **Update** installs
 //! it and restarts riteui (ticket 191), after asking for an open ticket to be
 //! closed so nothing typed is lost; an install riteui doesn't replace says
 //! why and how instead. **Later** hides that version for a day, across

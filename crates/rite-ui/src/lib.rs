@@ -14,13 +14,13 @@ mod updates;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use agile_md::board::{Board, Column};
-use agile_md::group::{DEFAULT_DAYS, Group, Kind, State};
-use agile_md::settings::Config;
-use agile_md::task::{ContentHash, Task};
-use agile_md::templates::{DEFAULT_TEMPLATE, TEMPLATE_SUFFIX, Templates, example_context};
-use agile_md::transition::{self, Event, Outcome, TicketFields};
-use agile_md::{board_settings, current_project, settings};
+use rite_lib::board::{Board, Column};
+use rite_lib::group::{DEFAULT_DAYS, Group, Kind, State};
+use rite_lib::settings::Config;
+use rite_lib::task::{ContentHash, Task};
+use rite_lib::templates::{DEFAULT_TEMPLATE, TEMPLATE_SUFFIX, Templates, example_context};
+use rite_lib::transition::{self, Event, Outcome, TicketFields};
+use rite_lib::{board_settings, current_project, settings};
 use rite_ui_model::appearance::Appearance;
 use rite_ui_model::epic::Place;
 use rite_ui_model::wip::WipLimits;
@@ -89,9 +89,9 @@ async fn change<T: Send + 'static>(
         // refuses the change; no network only warns, so is ignored here.
         let project = Project::open()?;
         // An archived project only reads (ticket 157).
-        agile_md::archive::ensure_writable(&project.repos[0].1).map_err(err)?;
+        rite_lib::archive::ensure_writable(&project.repos[0].1).map_err(err)?;
         for (_, board) in &project.repos {
-            agile_md::sync::catch_up(board, agile_md::sync::Purpose::Write).map_err(err)?;
+            rite_lib::sync::catch_up(board, rite_lib::sync::Purpose::Write).map_err(err)?;
             // Settings still in a documents repository come across, once
             // (ticket 111).
             transition::with_auto_commit(board, "settings", "migrate", "from documents", || {
@@ -201,7 +201,7 @@ async fn board_fingerprint() -> Result<String> {
         let project = Project::open()?;
         let mut hasher = std::hash::DefaultHasher::new();
         for (name, board) in &project.repos {
-            std::hash::Hash::hash(&(name, agile_md::model::fingerprint(board)), &mut hasher);
+            std::hash::Hash::hash(&(name, rite_lib::model::fingerprint(board)), &mut hasher);
         }
         Ok(format!("{:016x}", std::hash::Hasher::finish(&hasher)))
     })
@@ -223,7 +223,7 @@ async fn sync_board(state: Tauri<'_, AppState>) -> Result<rite_ui_model::SyncSta
         let mut warnings = Vec::new();
         let mut offline: Option<u32> = None;
         for (_, board) in &Project::open()?.repos {
-            match agile_md::sync::catch_up(board, agile_md::sync::Purpose::Read) {
+            match rite_lib::sync::catch_up(board, rite_lib::sync::Purpose::Read) {
                 Ok(events) => warnings.extend(events.into_iter().filter_map(|event| match event {
                     Event::Warn(text) => Some(text),
                     Event::Info(_) => None,
@@ -231,7 +231,7 @@ async fn sync_board(state: Tauri<'_, AppState>) -> Result<rite_ui_model::SyncSta
                 Err(e) => warnings.push(format!("{e:#}")),
             }
             // Origin out of reach (ticket 197): the page's bar says so.
-            if let Some(waiting) = agile_md::sync::offline(board) {
+            if let Some(waiting) = rite_lib::sync::offline(board) {
                 offline = Some(offline.unwrap_or(0) + waiting);
             }
             if let Err(e) = raise_for_due_dates(board, &due_checked) {
@@ -270,11 +270,11 @@ fn raise_for_due_dates(
     if !settings.auto_priority() || settings.archived() {
         return Ok(());
     }
-    if !agile_md::auto_priority::pending(board, agile_md::recur::today()) {
+    if !rite_lib::auto_priority::pending(board, rite_lib::recur::today()) {
         return Ok(());
     }
     transition::with_auto_commit(board, transition::PRIORITY, "due dates", "", || Ok(()))?;
-    agile_md::auto_priority::take_notes();
+    rite_lib::auto_priority::take_notes();
     Ok(())
 }
 
@@ -300,7 +300,7 @@ async fn open_ticket(place: Place, file: String) -> Result<TicketDocument> {
         let project = Project::open()?;
         let board = project.board(&place.repo)?;
         let task = task_at(board, &place, &file)?;
-        let content = agile_md::eol::read(&task.path).map_err(|e| e.to_string())?;
+        let content = rite_lib::eol::read(&task.path).map_err(|e| e.to_string())?;
         Ok(TicketDocument {
             repo: place.repo.clone(),
             file,
@@ -309,8 +309,8 @@ async fn open_ticket(place: Place, file: String) -> Result<TicketDocument> {
             lock: project.lock_of(&task),
             lapsed: project.lapsed_of(&task),
             version: task.hash().map_err(err)?.to_string(),
-            authorship: agile_md::authorship::summary(board, &task).unwrap_or_default(),
-            priority_note: agile_md::auto_priority::note(board, &task).unwrap_or_default(),
+            authorship: rite_lib::authorship::summary(board, &task).unwrap_or_default(),
+            priority_note: rite_lib::auto_priority::note(board, &task).unwrap_or_default(),
             content,
         })
     })
@@ -441,7 +441,7 @@ async fn create_ticket(
             epic: None,
             // A draft is a ticket carrying DRAFT (ticket 114).
             tags: if draft.unwrap_or(false) {
-                vec![agile_md::task::DRAFT_TAG.to_string()]
+                vec![rite_lib::task::DRAFT_TAG.to_string()]
             } else {
                 Vec::new()
             },
@@ -483,7 +483,7 @@ async fn repo_defaults() -> Result<rite_ui_model::RepoDefaults> {
                 ..Default::default()
             });
         }
-        use agile_md::new_repo::{self, Forge};
+        use rite_lib::new_repo::{self, Forge};
         Ok(match new_repo::defaults(board, &mut new_repo::gh) {
             Ok(d) => rite_ui_model::RepoDefaults {
                 place: match d.forge {
@@ -521,7 +521,7 @@ async fn create_repository(
     file: Option<String>,
 ) -> Result<SyncReport> {
     change(&state, move |project| {
-        use agile_md::new_repo::{self, NewRepo};
+        use rite_lib::new_repo::{self, NewRepo};
         let board = &project.repos[0].1;
         if !boards::admin_access(board).allowed {
             return Err("Only the project's admins can make repositories.".into());
@@ -589,9 +589,9 @@ fn created_from(board: &Board, repo: String, outcome: &transition::Outcome) -> R
             lock: None,
             lapsed: None,
             version: task.hash().map_err(err)?.to_string(),
-            authorship: agile_md::authorship::summary(board, &task).unwrap_or_default(),
-            priority_note: agile_md::auto_priority::note(board, &task).unwrap_or_default(),
-            content: agile_md::eol::read(&task.path).map_err(|e| e.to_string())?,
+            authorship: rite_lib::authorship::summary(board, &task).unwrap_or_default(),
+            priority_note: rite_lib::auto_priority::note(board, &task).unwrap_or_default(),
+            content: rite_lib::eol::read(&task.path).map_err(|e| e.to_string())?,
         },
         sync,
     })
@@ -652,17 +652,17 @@ async fn create_epic(
 }
 
 fn roadmap_card(
-    r: &agile_md::roadmap::Roadmap,
+    r: &rite_lib::roadmap::Roadmap,
     today: time::Date,
-    target: Option<&agile_md::board::Board>,
+    target: Option<&rite_lib::board::Board>,
 ) -> rite_ui_model::RoadmapCard {
     // A milestone's tickets are counted on the roadmap's own board.
-    let progress = |m: &agile_md::roadmap::Milestone| -> (usize, usize) {
+    let progress = |m: &rite_lib::roadmap::Milestone| -> (usize, usize) {
         let Some(board) = target else { return (0, 0) };
         let tasks = board.tasks_in_group(&m.name).unwrap_or_default();
         let done = tasks
             .iter()
-            .filter(|t| t.column == agile_md::board::Column::Done)
+            .filter(|t| t.column == rite_lib::board::Column::Done)
             .count();
         (done, tasks.len())
     };
@@ -704,7 +704,7 @@ async fn list_roadmaps() -> Result<rite_ui_model::RoadmapsPage> {
     blocking(|| {
         let project = Project::open()?;
         let today = time::OffsetDateTime::now_utc().date();
-        let mut roadmaps = agile_md::roadmap::list(&project.repos[0].1).map_err(err)?;
+        let mut roadmaps = rite_lib::roadmap::list(&project.repos[0].1).map_err(err)?;
         let cards: Vec<_> = roadmaps
             .drain(..)
             .map(|r| {
@@ -738,7 +738,7 @@ async fn create_roadmap(
         p.board(&board)?;
         let board = board.trim().to_string();
         committed(store, "roadmap", &board, "", || {
-            agile_md::roadmap::create(store, &board, &alias).map(|_| ())
+            rite_lib::roadmap::create(store, &board, &alias).map(|_| ())
         })
     })
     .await
@@ -755,7 +755,7 @@ async fn adopt_roadmap(
         let store = &p.repos[0].1;
         p.board(&board)?;
         committed(store, "roadmap-board", &board, &roadmap, || {
-            agile_md::roadmap::adopt(store, &roadmap, &board).map(|_| ())
+            rite_lib::roadmap::adopt(store, &roadmap, &board).map(|_| ())
         })
     })
     .await
@@ -772,7 +772,7 @@ async fn save_roadmap(
     change(&state, move |p| {
         let store = &p.repos[0].1;
         committed(store, "roadmap", &roadmap, "", || {
-            agile_md::roadmap::set_details(store, &roadmap, &goal, sprints).map(|_| ())
+            rite_lib::roadmap::set_details(store, &roadmap, &goal, sprints).map(|_| ())
         })
     })
     .await
@@ -788,7 +788,7 @@ async fn rename_roadmap(
     change(&state, move |p| {
         let store = &p.repos[0].1;
         committed(store, "roadmap-rename", name.trim(), &roadmap, || {
-            agile_md::roadmap::rename(store, &roadmap, &name).map(|_| ())
+            rite_lib::roadmap::rename(store, &roadmap, &name).map(|_| ())
         })
     })
     .await
@@ -804,7 +804,7 @@ async fn add_milestone(
 ) -> Result<SyncReport> {
     change(&state, move |p| {
         let store = &p.repos[0].1;
-        let found = agile_md::roadmap::list(store)
+        let found = rite_lib::roadmap::list(store)
             .map_err(err)?
             .into_iter()
             .find(|r| r.slug == roadmap)
@@ -817,11 +817,11 @@ async fn add_milestone(
         // A started sprint of the same name is used as it is (ticket 306).
         let mut warnings = Vec::new();
         let add = || {
-            agile_md::roadmap::add_milestone(
+            rite_lib::roadmap::add_milestone(
                 store,
                 target,
                 &roadmap,
-                agile_md::roadmap::Milestone {
+                rite_lib::roadmap::Milestone {
                     name: milestone.name.clone(),
                     description: milestone.description.clone(),
                     kind: Kind::Epic,
@@ -870,7 +870,7 @@ async fn delete_milestone(
         if !boards::admin_access(store).allowed {
             return Err("Only the project's admins can delete milestones.".into());
         }
-        let found = agile_md::roadmap::list(store)
+        let found = rite_lib::roadmap::list(store)
             .map_err(err)?
             .into_iter()
             .find(|r| r.slug == roadmap)
@@ -878,7 +878,7 @@ async fn delete_milestone(
         let target = p.board(&found.board)?;
         let mut notes = Vec::new();
         let remove = || {
-            agile_md::roadmap::delete_milestone(store, target, &roadmap, &name)
+            rite_lib::roadmap::delete_milestone(store, target, &roadmap, &name)
                 .map(|found| notes = found)
         };
         let verb = "roadmap-milestone-delete";
@@ -903,7 +903,7 @@ async fn delete_roadmap(state: Tauri<'_, AppState>, roadmap: String) -> Result<S
         if !boards::admin_access(store).allowed {
             return Err("Only the project's admins can delete roadmaps.".into());
         }
-        let found = agile_md::roadmap::list(store)
+        let found = rite_lib::roadmap::list(store)
             .map_err(err)?
             .into_iter()
             .find(|r| r.slug == roadmap)
@@ -916,7 +916,7 @@ async fn delete_roadmap(state: Tauri<'_, AppState>, roadmap: String) -> Result<S
         let name = found.name.clone();
         let mut notes = Vec::new();
         let remove =
-            || agile_md::roadmap::delete(store, target, &roadmap).map(|found| notes = found);
+            || rite_lib::roadmap::delete(store, target, &roadmap).map(|found| notes = found);
         let verb = "roadmap-delete";
         let report = match target {
             Some(t) if t.repo_root() != store.repo_root() => committed(t, verb, &name, "", || {
@@ -942,7 +942,7 @@ async fn set_milestone_dates(
 ) -> Result<SyncReport> {
     change(&state, move |p| {
         let store = &p.repos[0].1;
-        let found = agile_md::roadmap::list(store)
+        let found = rite_lib::roadmap::list(store)
             .map_err(err)?
             .into_iter()
             .find(|r| r.slug == roadmap)
@@ -952,7 +952,7 @@ async fn set_milestone_dates(
         }
         let target = p.board(&found.board)?;
         let set = || {
-            agile_md::roadmap::set_milestone_dates(
+            rite_lib::roadmap::set_milestone_dates(
                 store, target, &roadmap, &milestone, &start, &due,
             )
             .map(|_| ())
@@ -998,7 +998,7 @@ async fn close_sprint(
     name: String,
 ) -> Result<SyncReport> {
     change(&state, move |p| {
-        use agile_md::{documents, sprints, stats};
+        use rite_lib::{documents, sprints, stats};
         let (repo_name, board) = p
             .repos
             .iter()
@@ -1051,7 +1051,7 @@ async fn backfill_sprint(
     change(&state, move |p| {
         let board = p.board(&repo.unwrap_or_default())?;
         committed(board, "group-backfill", &name, "", || {
-            agile_md::sprints::backfill(board, &name, points).map(|_| ())
+            rite_lib::sprints::backfill(board, &name, points).map(|_| ())
         })
     })
     .await
@@ -1068,7 +1068,7 @@ async fn start_sprint(
         let board = p.board(&repo.unwrap_or_default())?;
         // Refused while its tickets require others outside it (ticket 214).
         committed(board, "group-start", &name, "", || {
-            agile_md::requires::start_sprint(board, &name)
+            rite_lib::requires::start_sprint(board, &name)
         })
     })
     .await
@@ -1212,7 +1212,7 @@ async fn link_ticket(
     change(&state, move |p| {
         let board = p.board(&place.repo)?;
         let task = task_at(board, &place, &file)?;
-        let kind = agile_md::links::LinkType::parse(&kind)
+        let kind = rite_lib::links::LinkType::parse(&kind)
             .ok_or_else(|| format!("unknown link type {kind:?}"))?;
         let other = board.find(&other).map_err(err)?;
         let outcome = transition::link_tickets(
@@ -1245,7 +1245,7 @@ async fn retype_link(
         let board = p.board(&place.repo)?;
         let task = task_at(board, &place, &file)?;
         let parse = |kind: &str| {
-            agile_md::links::LinkType::parse(kind)
+            rite_lib::links::LinkType::parse(kind)
                 .ok_or_else(|| format!("unknown link type {kind:?}"))
         };
         let (old, new) = (parse(&old)?, parse(&new)?);
@@ -1264,11 +1264,11 @@ fn ticket_family(
     place: Place,
     file: String,
     include_done: bool,
-) -> Result<Vec<agile_md::requires::TreeNode>> {
+) -> Result<Vec<rite_lib::requires::TreeNode>> {
     let project = Project::open()?;
     let board = project.board(&place.repo)?;
     let task = task_at(board, &place, &file)?;
-    agile_md::requires::family(board, Some(&task), include_done).map_err(err)
+    rite_lib::requires::family(board, Some(&task), include_done).map_err(err)
 }
 
 /// Parent and child around a ticket (ticket 261), as `rite tree <ref>
@@ -1278,11 +1278,11 @@ fn ticket_hierarchy(
     place: Place,
     file: String,
     include_done: bool,
-) -> Result<Vec<agile_md::requires::TreeNode>> {
+) -> Result<Vec<rite_lib::requires::TreeNode>> {
     let project = Project::open()?;
     let board = project.board(&place.repo)?;
     let task = task_at(board, &place, &file)?;
-    agile_md::hierarchy::hierarchy(board, Some(&task), include_done).map_err(err)
+    rite_lib::hierarchy::hierarchy(board, Some(&task), include_done).map_err(err)
 }
 
 /// Takes a ticket off the board into the archive (`rite abandon`).
@@ -1358,8 +1358,8 @@ fn save_setting(
 fn column_position(
     after: Option<rite_ui_model::Column>,
     before: Option<rite_ui_model::Column>,
-) -> agile_md::columns::Position {
-    use agile_md::columns::Position;
+) -> rite_lib::columns::Position {
+    use rite_lib::columns::Position;
     match (after, before) {
         (Some(c), _) => Position::After(boards::to_column(c)),
         (None, Some(c)) => Position::Before(boards::to_column(c)),
@@ -1378,11 +1378,11 @@ async fn add_column(
 ) -> Result<SyncReport> {
     change(&state, move |p| {
         let board = &p.repos[0].1;
-        let kind = agile_md::board::Kind::parse(&kind)
+        let kind = rite_lib::board::Kind::parse(&kind)
             .ok_or_else(|| format!("{kind:?} isn't a kind: backlog, todo, doing or done"))?;
         let at = column_position(after, before);
         committed(board, "column", "add", label.trim(), || {
-            agile_md::columns::add(board, &label, kind, at, None).map(|_| ())
+            rite_lib::columns::add(board, &label, kind, at, None).map(|_| ())
         })
     })
     .await
@@ -1398,7 +1398,7 @@ async fn rename_column(
     change(&state, move |p| {
         let board = &p.repos[0].1;
         committed(board, "column", "rename", label.trim(), || {
-            agile_md::columns::rename(board, boards::to_column(column), &label)
+            rite_lib::columns::rename(board, boards::to_column(column), &label)
         })
     })
     .await
@@ -1417,7 +1417,7 @@ async fn move_column(
         let col = boards::to_column(column);
         let label = board.workflow().label(col);
         committed(board, "column", "move", &label, || {
-            agile_md::columns::reorder(board, col, column_position(after, before))
+            rite_lib::columns::reorder(board, col, column_position(after, before))
         })
     })
     .await
@@ -1435,7 +1435,7 @@ async fn remove_column(
         let col = boards::to_column(column);
         let label = board.workflow().label(col);
         committed(board, "column", "remove", &label, || {
-            agile_md::columns::remove(board, col, move_to.map(boards::to_column)).map(|_| ())
+            rite_lib::columns::remove(board, col, move_to.map(boards::to_column)).map(|_| ())
         })
     })
     .await
@@ -1453,7 +1453,7 @@ async fn set_column_wip(
         let col = boards::to_column(column);
         let label = board.workflow().label(col);
         committed(board, "column", "wip", &label, || {
-            agile_md::columns::set_wip(board, col, limit)
+            rite_lib::columns::set_wip(board, col, limit)
         })
     })
     .await
@@ -1466,12 +1466,12 @@ async fn set_flow(state: Tauri<'_, AppState>, any: bool) -> Result<SyncReport> {
     change(&state, move |p| {
         let board = &p.repos[0].1;
         let flow = if any {
-            agile_md::workflow::Flow::Any
+            rite_lib::workflow::Flow::Any
         } else {
-            agile_md::workflow::Flow::Next
+            rite_lib::workflow::Flow::Next
         };
         committed(board, "column", "flow", flow.as_str(), || {
-            agile_md::columns::set_flow(board, flow)
+            rite_lib::columns::set_flow(board, flow)
         })
     })
     .await
@@ -1494,7 +1494,7 @@ async fn allow_move(
             "column",
             if on { "allow" } else { "disallow" },
             &what,
-            || agile_md::columns::allow_move(board, f, t, on),
+            || rite_lib::columns::allow_move(board, f, t, on),
         )
     })
     .await
@@ -1511,7 +1511,7 @@ async fn set_landing(
         let col = boards::to_column(column);
         let label = board.workflow().label(col);
         committed(board, "column", "landing", &label, || {
-            agile_md::columns::set_landing(board, col)
+            rite_lib::columns::set_landing(board, col)
         })
     })
     .await
@@ -1523,7 +1523,7 @@ async fn reset_columns(state: Tauri<'_, AppState>) -> Result<SyncReport> {
     change(&state, move |p| {
         let board = &p.repos[0].1;
         committed(board, "column", "reset", "standard", || {
-            agile_md::columns::reset(board).map(|_| ())
+            rite_lib::columns::reset(board).map(|_| ())
         })
     })
     .await
@@ -1534,7 +1534,7 @@ async fn reset_columns(state: Tauri<'_, AppState>) -> Result<SyncReport> {
 async fn add_tag(state: Tauri<'_, AppState>, tag: String) -> Result<SyncReport> {
     change(&state, move |p| {
         let board = &p.repos[0].1;
-        let name = agile_md::task::normalize_tag(&tag);
+        let name = rite_lib::task::normalize_tag(&tag);
         let mut settings = board_settings::load(board);
         settings.add_tag(&tag).map_err(err)?;
         committed(board, "tags", "add", &name, || settings.save(board))
@@ -1549,9 +1549,9 @@ async fn remove_tag(state: Tauri<'_, AppState>, tag: String) -> Result<SyncRepor
     change(&state, move |p| {
         let board = &p.repos[0].1;
         let boards = p.boards();
-        let name = agile_md::task::normalize_tag(&tag);
+        let name = rite_lib::task::normalize_tag(&tag);
         committed(board, "tags", "remove", &name, || {
-            agile_md::model::remove_unused_tag(board, &boards, &tag).map(|_| ())
+            rite_lib::model::remove_unused_tag(board, &boards, &tag).map(|_| ())
         })
     })
     .await
@@ -1626,9 +1626,9 @@ async fn pull_issues(state: Tauri<'_, AppState>) -> Result<Vec<SyncReport>> {
     let writing = Arc::clone(&state.writing);
     let pulled = Arc::clone(&state.issues_pulled);
     blocking(move || {
-        use agile_md::import_issues as issues;
+        use rite_lib::import_issues as issues;
         let mut reports = Vec::new();
-        for project in agile_md::my_work::projects() {
+        for project in rite_lib::my_work::projects() {
             if project.archived {
                 continue;
             }
@@ -1674,7 +1674,7 @@ async fn pull_issues(state: Tauri<'_, AppState>) -> Result<Vec<SyncReport>> {
             let _guard = writing
                 .lock()
                 .map_err(|_| "the board is in a bad state — restart riteui".to_string())?;
-            if agile_md::sync::catch_up(&board, agile_md::sync::Purpose::Write).is_err() {
+            if rite_lib::sync::catch_up(&board, rite_lib::sync::Purpose::Write).is_err() {
                 continue;
             }
             let Ok(plan) = issues::plan_with(&board, &targets, None, answer) else {
@@ -1815,7 +1815,7 @@ async fn import_issues(
     label: String,
     preview: bool,
 ) -> Result<rite_ui_model::IssueImport> {
-    use agile_md::import_issues as issues;
+    use rite_lib::import_issues as issues;
     let some = |s: &str| Some(s.trim().to_string()).filter(|s| !s.is_empty());
     let (repo, label) = (some(&repo), some(&label));
     let run = move |p: &Project| -> Result<rite_ui_model::IssueImport> {
@@ -1864,36 +1864,36 @@ async fn import_issues(
 async fn list_documents() -> Result<Vec<rite_ui_model::DocSource>> {
     blocking(|| {
         let project = Project::open()?;
-        Ok(agile_md::documents::sources(&project.repos[0].1)
+        Ok(rite_lib::documents::sources(&project.repos[0].1)
             .into_iter()
             .map(|source| {
                 let documents = source
                     .root
                     .as_deref()
-                    .and_then(|root| agile_md::documents::list(root).ok())
+                    .and_then(|root| rite_lib::documents::list(root).ok())
                     .unwrap_or_default();
                 let folders = source
                     .root
                     .as_deref()
-                    .map(agile_md::documents_edit::folders)
+                    .map(rite_lib::documents_edit::folders)
                     .unwrap_or_default();
                 // A start page is the project's own (ticket 179).
-                let own = source.kind == agile_md::documents::Kind::Own;
+                let own = source.kind == rite_lib::documents::Kind::Own;
                 let start = source
                     .root
                     .as_deref()
                     .filter(|_| own)
-                    .and_then(agile_md::documents_edit::start_page);
+                    .and_then(rite_lib::documents_edit::start_page);
                 let pinned = own
                     && source
                         .root
                         .as_deref()
-                        .and_then(agile_md::documents_edit::pinned)
+                        .and_then(rite_lib::documents_edit::pinned)
                         .is_some();
                 rite_ui_model::DocSource {
                     start,
                     pinned,
-                    shared: source.kind == agile_md::documents::Kind::Shared,
+                    shared: source.kind == rite_lib::documents::Kind::Shared,
                     cloned: source.root.is_some(),
                     name: source.name,
                     documents: documents
@@ -1919,10 +1919,10 @@ async fn list_documents() -> Result<Vec<rite_ui_model::DocSource>> {
 async fn read_document(source: String, path: String) -> Result<rite_ui_model::RenderedDoc> {
     blocking(move || {
         let root = documents_root(&source)?;
-        let text = agile_md::documents::read(&root, &path).map_err(err)?;
+        let text = rite_lib::documents::read(&root, &path).map_err(err)?;
         Ok(rite_ui_model::RenderedDoc {
             html: documents::render(&root, &path, &text),
-            archived: agile_md::documents_edit::is_archived(&text),
+            archived: rite_lib::documents_edit::is_archived(&text),
             source,
             path,
             version: None,
@@ -1937,16 +1937,16 @@ async fn read_document(source: String, path: String) -> Result<rite_ui_model::Re
 async fn list_ideas() -> Result<rite_ui_model::IdeaList> {
     blocking(|| {
         let project = Project::open()?;
-        let source = agile_md::ideas::source(&project.repos[0].1);
+        let source = rite_lib::ideas::source(&project.repos[0].1);
         let me = source
             .root
             .as_deref()
-            .and_then(|root| agile_md::ideas::Person::of(root).ok())
+            .and_then(|root| rite_lib::ideas::Person::of(root).ok())
             .map(|p| p.email)
             .unwrap_or_default();
         Ok(rite_ui_model::IdeaList {
             cloned: source.root.is_some(),
-            ideas: agile_md::ideas::list(&source)
+            ideas: rite_lib::ideas::list(&source)
                 .iter()
                 .map(|i| idea_card(i, &me))
                 .collect(),
@@ -1956,7 +1956,7 @@ async fn list_ideas() -> Result<rite_ui_model::IdeaList> {
     .await
 }
 
-fn idea_card(idea: &agile_md::ideas::Idea, me: &str) -> rite_ui_model::IdeaCard {
+fn idea_card(idea: &rite_lib::ideas::Idea, me: &str) -> rite_ui_model::IdeaCard {
     rite_ui_model::IdeaCard {
         path: idea.path.clone(),
         title: idea.title.clone(),
@@ -1977,14 +1977,14 @@ fn idea_card(idea: &agile_md::ideas::Idea, me: &str) -> rite_ui_model::IdeaCard 
 }
 
 /// Where the project's ideas are, and who "you" are there.
-fn ideas_root() -> Result<(Board, PathBuf, String, agile_md::ideas::Person)> {
+fn ideas_root() -> Result<(Board, PathBuf, String, rite_lib::ideas::Person)> {
     let project = Project::open()?;
     let board = Board::at(project.repos[0].1.root.clone());
-    let source = agile_md::ideas::source(&board);
+    let source = rite_lib::ideas::source(&board);
     let root = source
         .root
         .ok_or_else(|| format!("{} isn't cloned on this machine", source.name))?;
-    let me = agile_md::ideas::Person::of(&root).map_err(err)?;
+    let me = rite_lib::ideas::Person::of(&root).map_err(err)?;
     Ok((board, root, source.name, me))
 }
 
@@ -1993,10 +1993,10 @@ fn ideas_root() -> Result<(Board, PathBuf, String, agile_md::ideas::Person)> {
 async fn read_idea(path: String) -> Result<rite_ui_model::IdeaDetail> {
     blocking(move || {
         let (_, root, source, me) = ideas_root()?;
-        let idea = agile_md::ideas::read(&root, &source, &path).map_err(err)?;
+        let idea = rite_lib::ideas::read(&root, &source, &path).map_err(err)?;
         Ok(rite_ui_model::IdeaDetail {
             card: idea_card(&idea, &me.email),
-            html: documents::render(&root, &path, &agile_md::ideas::write_up(&idea.text)),
+            html: documents::render(&root, &path, &rite_lib::ideas::write_up(&idea.text)),
             votes: idea
                 .votes
                 .iter()
@@ -2026,8 +2026,8 @@ async fn idea_change(
     state: &Tauri<'_, AppState>,
     change: impl FnOnce(
         &Path,
-        &agile_md::ideas::Person,
-    ) -> anyhow::Result<(Option<String>, agile_md::documents::Restored)>
+        &rite_lib::ideas::Person,
+    ) -> anyhow::Result<(Option<String>, rite_lib::documents::Restored)>
     + Send
     + 'static,
 ) -> Result<rite_ui_model::DocChange> {
@@ -2037,7 +2037,7 @@ async fn idea_change(
             .lock()
             .map_err(|_| "the board is in a bad state — restart riteui".to_string())?;
         let (board, root, _, me) = ideas_root()?;
-        agile_md::archive::ensure_writable(&board).map_err(err)?;
+        rite_lib::archive::ensure_writable(&board).map_err(err)?;
         let (path, done) = change(&root, &me).map_err(err)?;
         Ok(rite_ui_model::DocChange {
             sync: SyncReport {
@@ -2061,7 +2061,7 @@ async fn create_idea(
     named: bool,
 ) -> Result<rite_ui_model::DocChange> {
     idea_change(&state, move |root, me| {
-        let (path, done) = agile_md::ideas::create(root, &title, &body, named.then_some(me))?;
+        let (path, done) = rite_lib::ideas::create(root, &title, &body, named.then_some(me))?;
         Ok((Some(path), done))
     })
     .await
@@ -2075,7 +2075,7 @@ async fn vote_idea(
     delta: i32,
 ) -> Result<rite_ui_model::DocChange> {
     idea_change(&state, move |root, me| {
-        let (_, done) = agile_md::ideas::vote(root, &path, delta.clamp(-1, 1), me)?;
+        let (_, done) = rite_lib::ideas::vote(root, &path, delta.clamp(-1, 1), me)?;
         Ok((Some(path), done))
     })
     .await
@@ -2089,7 +2089,7 @@ async fn note_idea(
     text: String,
 ) -> Result<rite_ui_model::DocChange> {
     idea_change(&state, move |root, me| {
-        let done = agile_md::ideas::note(root, &path, &text, me)?;
+        let done = rite_lib::ideas::note(root, &path, &text, me)?;
         Ok((Some(path), done))
     })
     .await
@@ -2103,12 +2103,12 @@ async fn idea_to_ticket(
 ) -> Result<rite_ui_model::IdeaTicket> {
     change(&state, move |p| {
         let board = &p.repos[0].1;
-        let source = agile_md::ideas::source(board);
+        let source = rite_lib::ideas::source(board);
         let root = source
             .root
             .ok_or_else(|| format!("{} isn't cloned on this machine", source.name))?;
         let (id, events, done) =
-            agile_md::ideas::to_ticket(board, &root, &source.name, &path).map_err(err)?;
+            rite_lib::ideas::to_ticket(board, &root, &source.name, &path).map_err(err)?;
         let task = board.find(&id).map_err(err)?;
         let mut warnings: Vec<String> = events
             .into_iter()
@@ -2155,13 +2155,13 @@ async fn idea_to_group(
                 "Only the project's admins can make an epic or a sprint from an idea.".into(),
             );
         }
-        let source = agile_md::ideas::source(board);
+        let source = rite_lib::ideas::source(board);
         let root = source
             .root
             .ok_or_else(|| format!("{} isn't cloned on this machine", source.name))?;
         let kind = if sprint { Kind::Sprint } else { Kind::Epic };
         let (made, warning, done) =
-            agile_md::ideas::to_group(board, &root, &source.name, &path, kind, &name, days)
+            rite_lib::ideas::to_group(board, &root, &source.name, &path, kind, &name, days)
                 .map_err(err)?;
         let warnings: Vec<String> = warning.into_iter().chain(done.warning.clone()).collect();
         Ok(SyncReport {
@@ -2181,7 +2181,7 @@ async fn idea_to_group(
 /// shared one) is cloned; an error for any other name, or one not cloned.
 fn documents_root(source: &str) -> Result<PathBuf> {
     let project = Project::open()?;
-    agile_md::documents::sources(&project.repos[0].1)
+    rite_lib::documents::sources(&project.repos[0].1)
         .into_iter()
         .find(|s| s.name == source)
         .ok_or_else(|| format!("{source} isn't one of this project's documents repositories"))?
@@ -2189,7 +2189,7 @@ fn documents_root(source: &str) -> Result<PathBuf> {
         .ok_or_else(|| format!("{source} isn't cloned on this machine"))
 }
 
-fn doc_version(v: agile_md::documents::Version) -> rite_ui_model::DocVersion {
+fn doc_version(v: rite_lib::documents::Version) -> rite_ui_model::DocVersion {
     rite_ui_model::DocVersion {
         commit: v.commit,
         short: v.short,
@@ -2205,7 +2205,7 @@ fn doc_version(v: agile_md::documents::Version) -> rite_ui_model::DocVersion {
 async fn document_history(source: String, path: String) -> Result<Vec<rite_ui_model::DocVersion>> {
     blocking(move || {
         let root = documents_root(&source)?;
-        Ok(agile_md::documents::history(&root, &path, 20)
+        Ok(rite_lib::documents::history(&root, &path, 20)
             .map_err(err)?
             .into_iter()
             .map(doc_version)
@@ -2224,16 +2224,16 @@ async fn read_document_version(
 ) -> Result<rite_ui_model::RenderedDoc> {
     blocking(move || {
         let root = documents_root(&source)?;
-        let version = agile_md::documents::history(&root, &path, usize::MAX)
+        let version = rite_lib::documents::history(&root, &path, usize::MAX)
             .map_err(err)?
             .into_iter()
             .find(|v| v.commit == commit)
             .ok_or_else(|| format!("{commit} isn't a version of {path}"))?;
-        let text = agile_md::documents::read_version(&root, &version.path, &version.commit)
+        let text = rite_lib::documents::read_version(&root, &version.path, &version.commit)
             .map_err(err)?;
         Ok(rite_ui_model::RenderedDoc {
             html: documents::render(&root, &path, &text),
-            archived: agile_md::documents_edit::is_archived(&text),
+            archived: rite_lib::documents_edit::is_archived(&text),
             source,
             path,
             version: Some(doc_version(version)),
@@ -2247,7 +2247,7 @@ async fn read_document_version(
 async fn doc_change(
     state: &Tauri<'_, AppState>,
     source: String,
-    change: impl FnOnce(&Path) -> anyhow::Result<(Option<String>, agile_md::documents::Restored)>
+    change: impl FnOnce(&Path) -> anyhow::Result<(Option<String>, rite_lib::documents::Restored)>
     + Send
     + 'static,
 ) -> Result<rite_ui_model::DocChange> {
@@ -2264,10 +2264,10 @@ async fn doc_change(
         if source
             == format!(
                 "{}-documents",
-                agile_md::current_project::project_name(board.repo_root())
+                rite_lib::current_project::project_name(board.repo_root())
             )
         {
-            agile_md::archive::ensure_writable(board).map_err(err)?;
+            rite_lib::archive::ensure_writable(board).map_err(err)?;
         }
         let (path, done) = change(&root).map_err(err)?;
         Ok(rite_ui_model::DocChange {
@@ -2290,19 +2290,19 @@ async fn doc_change(
 async fn my_pins() -> Result<Vec<rite_ui_model::DocPin>> {
     blocking(|| {
         let project = Project::open()?;
-        let sources = agile_md::documents::sources(&project.repos[0].1);
+        let sources = rite_lib::documents::sources(&project.repos[0].1);
         let Some(own) = sources
             .iter()
-            .find(|s| s.kind == agile_md::documents::Kind::Own)
+            .find(|s| s.kind == rite_lib::documents::Kind::Own)
             .and_then(|s| s.root.clone())
         else {
             return Ok(Vec::new());
         };
-        let Ok(me) = agile_md::doc_pins::me(&own) else {
+        let Ok(me) = rite_lib::doc_pins::me(&own) else {
             return Ok(Vec::new());
         };
         let mut lists = std::collections::HashMap::new();
-        Ok(agile_md::doc_pins::pins(&own, &me)
+        Ok(rite_lib::doc_pins::pins(&own, &me)
             .into_iter()
             .map(|pin| {
                 let docs = lists.entry(pin.source.clone()).or_insert_with(|| {
@@ -2310,7 +2310,7 @@ async fn my_pins() -> Result<Vec<rite_ui_model::DocPin>> {
                         .iter()
                         .find(|s| s.name == pin.source)
                         .and_then(|s| s.root.as_deref())
-                        .and_then(|root| agile_md::documents::list(root).ok())
+                        .and_then(|root| rite_lib::documents::list(root).ok())
                         .unwrap_or_default()
                 });
                 let found = docs.iter().find(|d| d.path == pin.path);
@@ -2340,18 +2340,18 @@ async fn set_doc_pin(
 ) -> Result<rite_ui_model::DocChange> {
     let own = blocking(|| {
         let project = Project::open()?;
-        agile_md::documents::sources(&project.repos[0].1)
+        rite_lib::documents::sources(&project.repos[0].1)
             .into_iter()
-            .find(|s| s.kind == agile_md::documents::Kind::Own)
+            .find(|s| s.kind == rite_lib::documents::Kind::Own)
             .map(|s| s.name)
             .ok_or_else(|| "this project has no documents repository".to_string())
     })
     .await?;
     doc_change(&state, own, move |root| {
-        let me = agile_md::doc_pins::me(root)?;
+        let me = rite_lib::doc_pins::me(root)?;
         Ok((
             None,
-            agile_md::doc_pins::set(root, &me, &source, &path, on)?,
+            rite_lib::doc_pins::set(root, &me, &source, &path, on)?,
         ))
     })
     .await
@@ -2368,7 +2368,7 @@ async fn pin_start_page(
     doc_change(&state, source, move |root| {
         Ok((
             None,
-            agile_md::documents_edit::pin_start_page(root, path.as_deref())?,
+            rite_lib::documents_edit::pin_start_page(root, path.as_deref())?,
         ))
     })
     .await
@@ -2382,9 +2382,9 @@ async fn search_documents(query: String) -> Result<Vec<rite_ui_model::DocHit>> {
     blocking(move || {
         let project = Project::open()?;
         let mut out = Vec::new();
-        for source in agile_md::documents::sources(&project.repos[0].1) {
+        for source in rite_lib::documents::sources(&project.repos[0].1) {
             let Some(root) = source.root else { continue };
-            for hit in agile_md::documents_edit::search(&root, &query, 3).map_err(err)? {
+            for hit in rite_lib::documents_edit::search(&root, &query, 3).map_err(err)? {
                 out.push(rite_ui_model::DocHit {
                     source: source.name.clone(),
                     path: hit.path,
@@ -2411,7 +2411,7 @@ async fn archive_document(
     doc_change(&state, source, move |root| {
         Ok((
             None,
-            agile_md::documents_edit::set_archived(root, &path, on)?,
+            rite_lib::documents_edit::set_archived(root, &path, on)?,
         ))
     })
     .await
@@ -2428,7 +2428,7 @@ async fn create_document_folder(
     doc_change(&state, source, move |root| {
         Ok((
             None,
-            agile_md::documents_edit::create_folder(root, &parent, &name)?,
+            rite_lib::documents_edit::create_folder(root, &parent, &name)?,
         ))
     })
     .await
@@ -2444,7 +2444,7 @@ async fn delete_document_folder(
     doc_change(&state, source, move |root| {
         Ok((
             None,
-            agile_md::documents_edit::delete_folder(root, &folder)?,
+            rite_lib::documents_edit::delete_folder(root, &folder)?,
         ))
     })
     .await
@@ -2459,7 +2459,7 @@ async fn move_document(
     folder: String,
 ) -> Result<rite_ui_model::DocChange> {
     doc_change(&state, source, move |root| {
-        let (to, done) = agile_md::documents_edit::move_document(root, &path, &folder)?;
+        let (to, done) = rite_lib::documents_edit::move_document(root, &path, &folder)?;
         Ok((Some(to), done))
     })
     .await
@@ -2474,7 +2474,7 @@ async fn create_document(
     title: String,
 ) -> Result<rite_ui_model::DocChange> {
     doc_change(&state, source, move |root| {
-        let (path, done) = agile_md::documents_edit::create_document(root, &folder, &title)?;
+        let (path, done) = rite_lib::documents_edit::create_document(root, &folder, &title)?;
         Ok((Some(path), done))
     })
     .await
@@ -2486,10 +2486,10 @@ async fn create_document(
 async fn open_document_for_edit(source: String, path: String) -> Result<rite_ui_model::DocEdit> {
     blocking(move || {
         let root = documents_root(&source)?;
-        let text = agile_md::documents::read(&root, &path).map_err(err)?;
-        let (front, body) = agile_md::documents_edit::split_frontmatter(&text);
+        let text = rite_lib::documents::read(&root, &path).map_err(err)?;
+        let (front, body) = rite_lib::documents_edit::split_frontmatter(&text);
         Ok(rite_ui_model::DocEdit {
-            version: agile_md::documents_edit::version(&text),
+            version: rite_lib::documents_edit::version(&text),
             frontmatter: front.unwrap_or_default().to_string(),
             unsupported: rite_ui_model::rich::unsupported(body)
                 .into_iter()
@@ -2516,7 +2516,7 @@ async fn save_document(
     doc_change(&state, source, move |root| {
         Ok((
             None,
-            agile_md::documents_edit::save(root, &path, &text, &version)?,
+            rite_lib::documents_edit::save(root, &path, &text, &version)?,
         ))
     })
     .await
@@ -2537,7 +2537,7 @@ async fn restore_document(
             .lock()
             .map_err(|_| "the board is in a bad state — restart riteui".to_string())?;
         let root = documents_root(&source)?;
-        let done = agile_md::documents::restore(&root, &path, &commit).map_err(err)?;
+        let done = rite_lib::documents::restore(&root, &path, &commit).map_err(err)?;
         Ok(SyncReport {
             committed: true,
             pushed: done.pushed,
@@ -2638,7 +2638,7 @@ async fn set_auto_commit(state: Tauri<'_, AppState>, on: bool) -> Result<bool> {
     .await
 }
 
-/// The user's colour scheme, from agile-md's own settings on this machine.
+/// The user's colour scheme, from KanRite's own settings on this machine.
 #[tauri::command]
 fn appearance() -> Appearance {
     let config = Config::load();
@@ -2788,7 +2788,7 @@ async fn set_tasks_dir(
 #[tauri::command]
 async fn home() -> Result<rite_ui_model::Home> {
     blocking(|| {
-        use agile_md::my_work;
+        use rite_lib::my_work;
         let here = std::env::current_dir().unwrap_or_default();
         let me = my_work::me(&here);
         let work = match &me {
@@ -2812,7 +2812,7 @@ async fn home() -> Result<rite_ui_model::Home> {
             project_shown: w.project_shown,
             project_root: w.project_root.display().to_string(),
             repo: w.repo,
-            column: agile_md::workflow::Workflow::standard()
+            column: rite_lib::workflow::Workflow::standard()
                 .find(&w.column)
                 .map(boards::from_column)
                 .unwrap_or(rite_ui_model::Column::Todo),
@@ -2834,8 +2834,8 @@ async fn home() -> Result<rite_ui_model::Home> {
                 .into_iter()
                 .map(|p| {
                     // Which documents buttons can work here (ticket 168).
-                    use agile_md::documents::{Kind, sources};
-                    let docs = sources(&agile_md::board::Board::in_repo(&p.root));
+                    use rite_lib::documents::{Kind, sources};
+                    let docs = sources(&rite_lib::board::Board::in_repo(&p.root));
                     let own = docs.iter().find(|d| d.kind == Kind::Own);
                     let shared = docs.iter().find(|d| d.kind == Kind::Shared);
                     rite_ui_model::HomeProject {
@@ -2854,7 +2854,7 @@ async fn home() -> Result<rite_ui_model::Home> {
                 })
                 .collect(),
             me: me.map(|(email, _)| email).unwrap_or_default(),
-            stats_days: agile_md::stats::period(),
+            stats_days: rite_lib::stats::period(),
             // The project open in this process: what the launch directory
             // found, or the last one opened (ticket 168).
             current: Project::open()
@@ -2872,12 +2872,12 @@ async fn home() -> Result<rite_ui_model::Home> {
 #[tauri::command]
 async fn project_counts(root: String) -> Result<rite_ui_model::TicketCounts> {
     blocking(move || {
-        use agile_md::my_work;
+        use rite_lib::my_work;
         let project = my_work::projects()
             .into_iter()
             .find(|p| p.root == Path::new(&root))
             .ok_or_else(|| format!("no project at {root}"))?;
-        let boards = my_work::boards_of(&project, &agile_md::registry::Registry::load());
+        let boards = my_work::boards_of(&project, &rite_lib::registry::Registry::load());
         let refs: Vec<&Board> = boards.iter().map(|(_, b)| b).collect();
         let counts = my_work::counts(&refs).map_err(err)?;
         Ok(rite_ui_model::TicketCounts {
@@ -2894,12 +2894,12 @@ async fn project_counts(root: String) -> Result<rite_ui_model::TicketCounts> {
 #[tauri::command]
 async fn project_stats(root: String, days: u32) -> Result<rite_ui_model::ProjectStats> {
     blocking(move || {
-        use agile_md::{my_work, stats};
+        use rite_lib::{my_work, stats};
         let project = my_work::projects()
             .into_iter()
             .find(|p| p.root == Path::new(&root))
             .ok_or_else(|| format!("no project at {root}"))?;
-        let boards = my_work::boards_of(&project, &agile_md::registry::Registry::load());
+        let boards = my_work::boards_of(&project, &rite_lib::registry::Registry::load());
         let now = stats::now();
         let refs: Vec<&Board> = boards.iter().map(|(_, b)| b).collect();
         let counts = stats::counts(&refs, days, now).map_err(err)?;
@@ -2939,7 +2939,7 @@ async fn project_stats(root: String, days: u32) -> Result<rite_ui_model::Project
 /// Remembers the statistics period (7, 30 or 90 days) on this machine.
 #[tauri::command]
 async fn set_stats_days(days: u32) -> Result<()> {
-    blocking(move || agile_md::stats::set_period(days).map_err(err)).await
+    blocking(move || rite_lib::stats::set_period(days).map_err(err)).await
 }
 
 /// Archives a project, or brings it back (tickets 157, 263), its
@@ -2962,14 +2962,14 @@ async fn set_project_archived(
             board if board.root.is_dir() => board,
             _ => Board::at(PathBuf::from(&root)),
         };
-        agile_md::sync::catch_up(&board, agile_md::sync::Purpose::Write).map_err(err)?;
+        rite_lib::sync::catch_up(&board, rite_lib::sync::Purpose::Write).map_err(err)?;
         // Always on GitHub, and archiving forgets it here (ticket 263).
-        let events = agile_md::archive::set_archived(
+        let events = rite_lib::archive::set_archived(
             &board,
             on,
             true,
-            &mut agile_md::archive::gh,
-            &mut agile_md::archive::forget,
+            &mut rite_lib::archive::gh,
+            &mut rite_lib::archive::forget,
         )
         .map_err(err)?;
         let mut info = Vec::new();
@@ -2993,14 +2993,14 @@ async fn set_project_archived(
 /// your own config on this machine, never committed.
 #[tauri::command]
 async fn set_project_hidden(root: String, hidden: bool) -> Result<()> {
-    blocking(move || agile_md::my_work::set_hidden(Path::new(&root), hidden).map_err(err)).await
+    blocking(move || rite_lib::my_work::set_hidden(Path::new(&root), hidden).map_err(err)).await
 }
 
 /// Folds a project's sprint graphs on the landing page, or opens them
 /// (ticket 305), remembered in your own config on this machine.
 #[tauri::command]
 async fn set_project_graphs_folded(root: String, folded: bool) -> Result<()> {
-    blocking(move || agile_md::my_work::set_graphs_folded(Path::new(&root), folded).map_err(err))
+    blocking(move || rite_lib::my_work::set_graphs_folded(Path::new(&root), folded).map_err(err))
         .await
 }
 
@@ -3008,7 +3008,7 @@ async fn set_project_graphs_folded(root: String, folded: bool) -> Result<()> {
 /// own config on this machine.
 #[tauri::command]
 async fn set_include_unassigned(on: bool) -> Result<()> {
-    blocking(move || agile_md::my_work::set_include_unassigned(on).map_err(err)).await
+    blocking(move || rite_lib::my_work::set_include_unassigned(on).map_err(err)).await
 }
 
 /// Switches to another project in the same folder (ticket 093): records
@@ -3059,8 +3059,8 @@ async fn use_project(
 fn show_from(path: &Path) -> Result<rite_ui_model::Board> {
     // Say which folder is the trouble, not that the current directory isn't
     // in a repository (ticket 341).
-    if path.is_dir() && !agile_md::git::is_repo_dir(path) {
-        return Err(agile_md::git::not_a_repo(path));
+    if path.is_dir() && !rite_lib::git::is_repo_dir(path) {
+        return Err(rite_lib::git::not_a_repo(path));
     }
     let previous = std::env::current_dir().ok();
     std::env::set_current_dir(path).map_err(|e| format!("{}: {e}", path.display()))?;
@@ -3130,7 +3130,7 @@ pub fn run() {
                 && let Ok(screen) = state.screen.lock()
                 && let Some(repo) = screen.as_ref()
             {
-                agile_md::screen::clear(repo);
+                rite_lib::screen::clear(repo);
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -3750,7 +3750,7 @@ async fn terminal_open(
         use rite_ui_model::terminal::TermKind;
         let cwd = Project::open()
             .ok()
-            .map(|p| agile_md::registry::project_dir_of(p.repos[0].1.repo_root()));
+            .map(|p| rite_lib::registry::project_dir_of(p.repos[0].1.repo_root()));
         let ai = match kind {
             TermKind::Shell => None,
             TermKind::Ai => Some(ai_command_now()),
@@ -3833,16 +3833,16 @@ fn ai_command_now() -> String {
 /// `screen` tool (`rite mcp`): the project's note, keyed by its own board
 /// repository. A project switch takes the old project's note away.
 #[tauri::command]
-fn set_screen(state: Tauri<'_, AppState>, mut view: agile_md::screen::View) -> Result<()> {
-    let found = agile_md::model::find_repos().map_err(err)?;
+fn set_screen(state: Tauri<'_, AppState>, mut view: rite_lib::screen::View) -> Result<()> {
+    let found = rite_lib::model::find_repos().map_err(err)?;
     let (_, root, own) = &found.repos[0];
-    let project = agile_md::current_project::project_name(root);
+    let project = rite_lib::current_project::project_name(root);
     // The page knows an idea by its path; ideas live in the project's own
     // documents repository.
     if let Some(idea) = view.idea.as_mut()
         && idea.repo.is_empty()
     {
-        idea.repo = agile_md::ideas::source(own).name;
+        idea.repo = rite_lib::ideas::source(own).name;
     }
     let mut last = state
         .screen
@@ -3851,10 +3851,10 @@ fn set_screen(state: Tauri<'_, AppState>, mut view: agile_md::screen::View) -> R
     if let Some(before) = last.as_ref()
         && before != root
     {
-        agile_md::screen::clear(before);
+        rite_lib::screen::clear(before);
     }
     *last = Some(root.clone());
-    agile_md::screen::write(root, &project, view).map_err(err)
+    rite_lib::screen::write(root, &project, view).map_err(err)
 }
 
 /// The command the AI tab runs (ticket 185), `claude` unless Preferences
@@ -3921,7 +3921,7 @@ async fn open_in_editor() -> Result<()> {
             return Err("set an editor in Preferences first".to_string());
         }
         let dir = Project::open()
-            .map(|p| agile_md::registry::project_dir_of(p.repos[0].1.repo_root()))?;
+            .map(|p| rite_lib::registry::project_dir_of(p.repos[0].1.repo_root()))?;
         spawn_detached(&command, &dir).map_err(|e| format!("starting the editor ({command}): {e}"))
     })
     .await
@@ -4004,7 +4004,7 @@ async fn clone_repository(state: Tauri<'_, AppState>, name: String) -> Result<Ve
 
 fn clone_into(project: &Project, name: &str) -> Result<Vec<String>> {
     let cloned =
-        agile_md::clone::clone_repo(&project.repos[0].1, name).map_err(|e| format!("{e:#}"))?;
+        rite_lib::clone::clone_repo(&project.repos[0].1, name).map_err(|e| format!("{e:#}"))?;
     Ok(cloned
         .also_at
         .iter()
@@ -4045,13 +4045,13 @@ mod tests {
 
     #[test]
     fn the_pages_link_kinds_are_amd_libs() {
-        let lib: Vec<(&str, &str)> = agile_md::links::LinkType::ALL
+        let lib: Vec<(&str, &str)> = rite_lib::links::LinkType::ALL
             .iter()
             .map(|kind| (kind.slug(), kind.label()))
             .collect();
         assert_eq!(lib, rite_ui_model::LINK_KINDS);
         // ...and turn round the same way (ticket 121).
-        for kind in agile_md::links::LinkType::ALL {
+        for kind in rite_lib::links::LinkType::ALL {
             assert_eq!(
                 rite_ui_model::link_inverse(kind.slug()),
                 kind.inverse().slug()
@@ -4065,7 +4065,7 @@ mod tests {
     fn the_pages_pairing_rule_is_amd_libs() {
         assert_eq!(
             rite_ui_model::ticket::NO_BRANCH,
-            agile_md::branch::NO_BRANCH
+            rite_lib::branch::NO_BRANCH
         );
         for (repository, kind) in [
             ("acme-api", ""),
@@ -4077,7 +4077,7 @@ mod tests {
         ] {
             assert_eq!(
                 rite_ui_model::ticket::pairing_mismatch(repository, kind),
-                agile_md::pairing::mismatch(repository, kind),
+                rite_lib::pairing::mismatch(repository, kind),
                 "{repository:?} {kind:?}"
             );
         }
@@ -4087,7 +4087,7 @@ mod tests {
     /// 214), field for field.
     #[test]
     fn the_pages_tree_is_amd_libs() {
-        use agile_md::requires::{Edge, TreeNode};
+        use rite_lib::requires::{Edge, TreeNode};
         let node = |id: &str, edge: Edge, children: Vec<TreeNode>| TreeNode {
             id: id.into(),
             title: format!("Ticket {id}"),
@@ -4173,7 +4173,7 @@ mod tests {
         settings.save(board).unwrap();
         let file = new_ticket(&project, "Tagged");
         let path = board.root.join("backlog").join(&file);
-        let text = agile_md::eol::read(&path).unwrap();
+        let text = rite_lib::eol::read(&path).unwrap();
         std::fs::write(&path, text.replace("tags: []", "tags: [future,misc]")).unwrap();
 
         let summary = project.summary().unwrap();
@@ -4222,7 +4222,7 @@ mod tests {
 
         let file = new_ticket(&project, "About the old site");
         let path = project.repos[0].1.root.join("backlog").join(&file);
-        let text = agile_md::eol::read(&path).unwrap();
+        let text = rite_lib::eol::read(&path).unwrap();
         assert!(text.contains("repository: \"\""), "{text}");
         std::fs::write(
             &path,
@@ -4372,7 +4372,7 @@ mod tests {
         .unwrap();
 
         let page = project.summary().unwrap().counts();
-        let library = agile_md::my_work::counts(&[board]).unwrap();
+        let library = rite_lib::my_work::counts(&[board]).unwrap();
         // Done is left out; the epic's ticket is in; a TRIAGE ticket is top.
         assert_eq!((page.open, page.top, page.triage), (4, 3, 1));
         assert_eq!(
@@ -4403,7 +4403,7 @@ mod tests {
     #[test]
     fn the_header_shows_the_projects_own_name() {
         let (_dir, project) = project();
-        let settings = agile_md::board_settings::path(project.board("").unwrap());
+        let settings = rite_lib::board_settings::path(project.board("").unwrap());
         std::fs::write(&settings, "commit = off\nproject = grimartz\n").unwrap();
         assert_eq!(project.summary().unwrap().project, "grimartz");
     }
@@ -4411,7 +4411,7 @@ mod tests {
     #[test]
     fn the_board_carries_the_project_users_for_the_assignee_picker() {
         let (_dir, project) = project();
-        let settings = agile_md::board_settings::path(project.board("").unwrap());
+        let settings = rite_lib::board_settings::path(project.board("").unwrap());
         std::fs::write(
             &settings,
             "commit = off\nusers = oldippy <o@t.co>, Ann <a@t.co>\n",
@@ -4426,7 +4426,7 @@ mod tests {
         let (_dir, project) = project();
         let file = new_ticket(&project, "Lapsed");
         let path = project.board("").unwrap().root.join("backlog").join(&file);
-        let text = agile_md::eol::read(&path).unwrap();
+        let text = rite_lib::eol::read(&path).unwrap();
         let text = text
             .replace("locked-by: \"\"", "locked-by: \"t@t.co\"")
             .replace(
@@ -4524,7 +4524,7 @@ mod tests {
         let place = column(UiColumn::Backlog);
         let task = task_at(board, &place, &file).unwrap();
         let opened = task.hash().unwrap();
-        let text = agile_md::eol::read(&task.path).unwrap();
+        let text = rite_lib::eol::read(&task.path).unwrap();
 
         // Locked after the editor opened: the save keeps the lock, but is
         // refused as a conflict because the file changed underneath it.
@@ -4536,7 +4536,7 @@ mod tests {
         // Reopened, the save lands and the lock stays.
         let task = task_at(board, &place, &file).unwrap();
         transition::save_text(board, &task, task.hash().unwrap(), &edited).unwrap();
-        let saved = agile_md::eol::read(&task.path).unwrap();
+        let saved = rite_lib::eol::read(&task.path).unwrap();
         assert!(
             saved.contains("More") && saved.contains("locked-by: \"t@t.co\""),
             "{saved}"
@@ -4571,12 +4571,12 @@ mod tests {
         fields.assignees = people.clone();
         assert_eq!(
             rite_ui_model::ticket::apply_fields(ticket, &fields),
-            agile_md::task::with_assignees(ticket, &people).unwrap()
+            rite_lib::task::with_assignees(ticket, &people).unwrap()
         );
         for raw in [r#"["Alex \"Al\" Morgan","Jo, Jr"]"#, "[a, 'b, c']", "[]"] {
             assert_eq!(
                 rite_ui_model::parse_names(raw),
-                agile_md::task::parse_names(raw),
+                rite_lib::task::parse_names(raw),
                 "{raw}"
             );
         }
@@ -4594,7 +4594,7 @@ mod tests {
         ] {
             assert_eq!(
                 rite_ui_model::same_name(a, b),
-                agile_md::names::same(a, b),
+                rite_lib::names::same(a, b),
                 "{a} / {b}"
             );
         }
@@ -4609,7 +4609,7 @@ mod tests {
         ] {
             assert_eq!(
                 rite_ui_model::slugify(title),
-                agile_md::task::slugify(title),
+                rite_lib::task::slugify(title),
                 "{title}"
             );
         }

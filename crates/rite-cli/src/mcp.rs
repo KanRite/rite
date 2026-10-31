@@ -4,7 +4,7 @@
 //! An AI tool (Claude Code, Copilot in VS Code, Cursor, Codex, Gemini
 //! CLI…) starts `rite mcp` and talks JSON-RPC 2.0 to it, one message per
 //! line on stdin and stdout. The tools themselves are
-//! `agile_md::assistant`'s; this is only the wire. Written by hand rather
+//! `rite_lib::assistant`'s; this is only the wire. Written by hand rather
 //! than with an SDK: five methods, and the CLI stays synchronous.
 //!
 //! **stdout carries nothing but protocol.** rite-lib prints nothing, but the
@@ -19,7 +19,7 @@ use std::path::Path;
 use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
 
-use agile_md::assistant;
+use rite_lib::assistant;
 
 /// The protocol versions this server speaks, newest first.
 const VERSIONS: [&str; 3] = ["2025-06-18", "2025-03-26", "2024-11-05"];

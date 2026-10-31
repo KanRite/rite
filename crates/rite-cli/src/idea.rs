@@ -6,10 +6,10 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 
-use agile_md::board::Board;
-use agile_md::documents::{Restored, Source};
-use agile_md::ideas::{self, Idea, Person};
-use agile_md::transition::Event;
+use rite_lib::board::Board;
+use rite_lib::documents::{Restored, Source};
+use rite_lib::ideas::{self, Idea, Person};
+use rite_lib::transition::Event;
 
 use crate::form;
 
@@ -56,7 +56,7 @@ pub fn run(action: Action, editor: &str) -> Result<()> {
             edit,
         } => {
             let root = cloned(&source)?;
-            agile_md::archive::ensure_writable(&board)?;
+            rite_lib::archive::ensure_writable(&board)?;
             let body = if edit && form::available() {
                 let written = form::body(&format!("# {title}\n\n"), OsStr::new(editor))?;
                 written
@@ -111,9 +111,9 @@ pub fn run(action: Action, editor: &str) -> Result<()> {
             let idea = ideas::find(&all, &reference)?;
             let root = root_of(sources, idea)?;
             let group_kind = if kind == "sprint" {
-                agile_md::group::Kind::Sprint
+                rite_lib::group::Kind::Sprint
             } else {
-                agile_md::group::Kind::Epic
+                rite_lib::group::Kind::Epic
             };
             let (made, warning, done) = ideas::to_group(
                 &board,
@@ -194,7 +194,7 @@ fn list(sources: &[Source], all: bool) -> Result<()> {
 
 /// `rite idea show`: the write-up, then who voted and the notes.
 fn show(idea: &Idea) {
-    let (_, body) = agile_md::documents_edit::split_frontmatter(&idea.text);
+    let (_, body) = rite_lib::documents_edit::split_frontmatter(&idea.text);
     let body = body.split("\n## Notes").next().unwrap_or(body);
     println!("{}", body.trim_end());
     println!();
@@ -255,7 +255,7 @@ fn clicks_of(clicks: &str) -> Result<i32> {
 fn locate(board: &Board, sources: &[Source], reference: &str) -> Result<(Idea, PathBuf)> {
     let all = ideas::list(&sources[0]);
     let idea = ideas::find(&all, reference)?.clone();
-    agile_md::archive::ensure_writable(board)?;
+    rite_lib::archive::ensure_writable(board)?;
     let root = root_of(sources, &idea)?;
     Ok((idea, root))
 }

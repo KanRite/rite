@@ -1,5 +1,5 @@
 //! The requires tree as the page receives it (ticket 214): the same shape
-//! as `agile_md::requires::TreeNode`, which rite-ui sends; this crate can't
+//! as `rite_lib::requires::TreeNode`, which rite-ui sends; this crate can't
 //! depend on rite-lib, so rite-ui's tests check the two agree.
 
 use serde::{Deserialize, Serialize};

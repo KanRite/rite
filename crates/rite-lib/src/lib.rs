@@ -1,4 +1,4 @@
-//! agile-md — a tiny filesystem Kanban in markdown.
+//! KanRite — a tiny filesystem Kanban in markdown.
 //!
 //! Tasks are markdown files that move between `todo/`, `doing/` and `done/` in
 //! `<repo-root>/tasks`. Status is the folder; `git mv` is the audit trail; the

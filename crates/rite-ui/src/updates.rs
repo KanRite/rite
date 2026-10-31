@@ -1,5 +1,5 @@
-//! The update bar's backend (ticket 192): asks GitHub for agile-md's
-//! releases, through `agile_md::update`, which decides what to say and
+//! The update bar's backend (ticket 192): asks GitHub for KanRite's
+//! releases, through `rite_lib::update`, which decides what to say and
 //! remembers "Later". rite-lib has no HTTP client, so the network is here.
 //!
 //! Silent about failure, as `update::check` is: offline, rate limited or a
@@ -9,12 +9,12 @@
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use agile_md::settings::Config;
-use agile_md::update::{self, Release, ReleaseSource, Version};
-use agile_md::update_apply::{self, Applied, Fetch, Install};
+use rite_lib::settings::Config;
+use rite_lib::update::{self, Release, ReleaseSource, Version};
+use rite_lib::update_apply::{self, Applied, Fetch, Install};
 use rite_ui_model::{ManualCheck, UpdateInfo, UpdateResult};
 
-/// agile-md's releases, newest first; 30 is far more than a build is behind.
+/// KanRite's releases, newest first; 30 is far more than a build is behind.
 const RELEASES: &str = "https://api.github.com/repos/kanrite/rite/releases?per_page=30";
 
 /// GitHub, as `update::check`'s source.
@@ -23,7 +23,7 @@ struct GitHub;
 impl ReleaseSource for GitHub {
     fn releases(&self) -> anyhow::Result<Vec<Release>> {
         // As `rite update`: the tests point the list at a file.
-        if let Ok(list) = agile_md::renamed::var("RITE_UPDATE_RELEASES")
+        if let Ok(list) = rite_lib::renamed::var("RITE_UPDATE_RELEASES")
             && let Some(path) = list.strip_prefix("file://")
         {
             return update::parse_releases(&std::fs::read_to_string(path)?);
@@ -131,7 +131,7 @@ impl Fetch for Download {
 
 /// The update bar's Update (ticket 191): replaces rite and riteui with the
 /// newest release's, one release at a time, through
-/// `agile_md::update_apply`, which touches nothing else. An install
+/// `rite_lib::update_apply`, which touches nothing else. An install
 /// riteui doesn't replace says why instead.
 pub fn apply() -> UpdateResult {
     let current = env!("CARGO_PKG_VERSION").to_string();

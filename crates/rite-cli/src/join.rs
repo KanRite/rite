@@ -14,9 +14,9 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 
-use agile_md::board::Board;
-use agile_md::board_settings::{self, User};
-use agile_md::git;
+use rite_lib::board::Board;
+use rite_lib::board_settings::{self, User};
+use rite_lib::git;
 
 use crate::init::{owner_for, register};
 
@@ -50,7 +50,7 @@ pub fn run(project: String, org: Option<String>) -> Result<()> {
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_default();
-        if let Some(other) = agile_md::names::folder_named(&base, &folder)? {
+        if let Some(other) = rite_lib::names::folder_named(&base, &folder)? {
             bail!(
                 "{} already exists — rite join only clones into a directory that doesn't                  have the project yet",
                 other.display()
@@ -66,7 +66,7 @@ pub fn run(project: String, org: Option<String>) -> Result<()> {
         }
     }
 
-    let git_base = agile_md::renamed::var("RITE_GIT_BASE")
+    let git_base = rite_lib::renamed::var("RITE_GIT_BASE")
         .ok()
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| DEFAULT_GIT_BASE.to_string());

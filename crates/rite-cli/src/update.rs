@@ -1,6 +1,6 @@
 //! `rite update` (ticket 191): replaces the installed `rite` and `riteui` with
 //! the newest release's, one release at a time, through
-//! `agile_md::update_apply`, which never touches anything else. Only an
+//! `rite_lib::update_apply`, which never touches anything else. Only an
 //! installer's release install updates itself; anything else is told how.
 //!
 //! The network is here, not in rite-lib: GitHub's releases API and its
@@ -10,9 +10,9 @@
 
 use std::time::Duration;
 
-use agile_md::update::{self, Release, Version};
-use agile_md::update_apply::{self, Applied, Fetch, Install, Step};
 use anyhow::{Context, Result, anyhow, bail};
+use rite_lib::update::{self, Release, Version};
+use rite_lib::update_apply::{self, Applied, Fetch, Install, Step};
 
 const RELEASES: &str = "https://api.github.com/repos/kanrite/rite/releases?per_page=100";
 
@@ -51,7 +51,7 @@ impl Fetch for Net {
 /// Every published release, with its files, fresh from GitHub.
 fn releases(net: &Net) -> Result<Vec<Release>> {
     let url =
-        agile_md::renamed::var("RITE_UPDATE_RELEASES").unwrap_or_else(|_| RELEASES.to_string());
+        rite_lib::renamed::var("RITE_UPDATE_RELEASES").unwrap_or_else(|_| RELEASES.to_string());
     let body = net
         .get(&url)
         .context("asking GitHub for KanRite's releases")?;

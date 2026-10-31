@@ -1,4 +1,4 @@
-//! Closing a sprint and backfilling one (ticket 052, agile-md-documents'
+//! Closing a sprint and backfilling one (ticket 052, kanrite-documents'
 //! RFC 0005).
 //!
 //! **Closing** makes a started sprint read-only: nothing goes in or out.

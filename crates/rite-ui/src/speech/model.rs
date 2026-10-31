@@ -154,7 +154,7 @@ impl Model {
         if dir.exists() {
             fs::remove_dir_all(&dir).with_context(|| format!("removing {}", dir.display()))?;
         }
-        // The speech folder goes too once it's empty, and agile-md's own
+        // The speech folder goes too once it's empty, and KanRite's own
         // data folder if speech was all it held: nothing left behind.
         let speech = speech_dir();
         if fs::remove_dir(&speech).is_ok()
@@ -167,8 +167,8 @@ impl Model {
 }
 
 pub(crate) fn speech_dir() -> PathBuf {
-    agile_md::places::data()
-        .unwrap_or_else(|| PathBuf::from(".local/share").join(agile_md::places::NAME))
+    rite_lib::places::data()
+        .unwrap_or_else(|| PathBuf::from(".local/share").join(rite_lib::places::NAME))
         .join("speech")
 }
 

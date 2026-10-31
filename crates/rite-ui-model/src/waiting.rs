@@ -1,5 +1,5 @@
 //! "Done waits" on the page (ticket 213): which tickets a card must wait
-//! for before it can go to done. The same rule as `agile_md::links::
+//! for before it can go to done. The same rule as `rite_lib::links::
 //! waiting_on`, which `Board::move_task` enforces; this is only so a card
 //! can say so and a drag onto done is refused before the drop. A ticket
 //! waits for those it requires (its own `requires:` link, or another's
@@ -117,7 +117,7 @@ pub struct Gap {
 }
 
 /// What stops sprint `name` in `repo` starting (ticket 214): the same rule
-/// as `agile_md::requires::sprint_gaps`, from the board's cards (`all`, as
+/// as `rite_lib::requires::sprint_gaps`, from the board's cards (`all`, as
 /// [`all_tickets`] gives them).
 pub fn sprint_gaps(
     all: &[&TicketSummary],

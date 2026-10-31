@@ -33,7 +33,7 @@ custom-protocol = ["tauri/custom-protocol"]
 tauri-build.workspace = true
 
 [dependencies]
-agile-md.workspace = true
+rite-lib.workspace = true
 alacritty_terminal.workspace = true
 candle-core.workspace = true
 candle-nn.workspace = true

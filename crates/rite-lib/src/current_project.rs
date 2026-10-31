@@ -2,7 +2,7 @@
 //!
 //! `rite init`/`rite join` put a project's repositories side by side in a
 //! plain folder — the *project directory* — and nothing stops a second
-//! project landing next to the first (`agile-md-tickets` beside
+//! project landing next to the first (`kanrite-tickets` beside
 //! `multi-user-test-tickets`). `Board::discover()` used to find both and
 //! either refuse (from the folder itself) or silently give up (from a code
 //! repository next to them). `.current-project`, a one-line file in that
@@ -58,7 +58,7 @@ pub fn write(dir: &Path, name: &str) -> Result<()> {
     fs::write(&path, format!("{name}\n")).with_context(|| format!("writing {}", path.display()))
 }
 
-/// The project a board repository belongs to: `agile-md-tickets` is
+/// The project a board repository belongs to: `kanrite-tickets` is
 /// `agile-md` by the layout `init` creates; otherwise whatever the board
 /// declares; otherwise the directory's own name.
 pub fn project_name(tickets: &Path) -> String {

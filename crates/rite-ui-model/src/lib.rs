@@ -351,7 +351,7 @@ pub struct TicketSummary {
 
 /// The kinds of link a ticket can have (ticket 207), as `(slug, label)`:
 /// the slug is what `links:` and `rite link --type` use. The same list, in
-/// the same order, as `agile_md::links::LinkType::ALL`, which `rite-ui`'s
+/// the same order, as `rite_lib::links::LinkType::ALL`, which `rite-ui`'s
 /// tests check, since this crate can't depend on rite-lib.
 pub const LINK_KINDS: [(&str, &str); 9] = [
     ("relates-to", "Relates to"),
@@ -366,7 +366,7 @@ pub const LINK_KINDS: [(&str, &str); 9] = [
 ];
 
 /// The kind as the other ticket records it (ticket 121), as
-/// `agile_md::links::LinkType::inverse`: `requires` is `required-by` from
+/// `rite_lib::links::LinkType::inverse`: `requires` is `required-by` from
 /// the other end. An unknown slug is its own.
 pub fn link_inverse(slug: &str) -> &str {
     match slug {
@@ -721,7 +721,7 @@ pub struct Board {
     /// A priority set by hand pins its ticket against auto priority.
     #[serde(default)]
     pub priority_override: bool,
-    /// The agile-md version the project's team requires, when it's newer
+    /// The KanRite version the project's team requires, when it's newer
     /// than this build (ticket 193): the board is read-only here until
     /// updated, and the update bar has no Later.
     #[serde(default)]
@@ -861,8 +861,8 @@ pub struct RepoChoice {
     pub available: bool,
 }
 
-/// A `repository` value as a bare name: `agile-md/amd`, `amd.git` and `amd`
-/// all name `amd`. Must match `agile_md::task::repo_name`.
+/// A `repository` value as a bare name: `kanrite/rite`, `amd.git` and `amd`
+/// all name `amd`. Must match `rite_lib::task::repo_name`.
 pub fn repo_name(value: &str) -> String {
     let value = value.trim().trim_end_matches('/');
     let value = value.strip_suffix(".git").unwrap_or(value);
@@ -1618,7 +1618,7 @@ pub fn parse_frontmatter(content: &str) -> Frontmatter {
 
 /// A flow list of names, `["Alex Morgan","Jo, Jr"]`, as rite writes
 /// `assignees`: a quoted name may hold a comma. Mirrors
-/// `agile_md::task::parse_names`.
+/// `rite_lib::task::parse_names`.
 pub fn parse_names(raw: &str) -> Vec<String> {
     let inner = raw.trim().trim_start_matches('[').trim_end_matches(']');
     let mut names = Vec::new();
@@ -1669,7 +1669,7 @@ fn parse_list(value: &str) -> Vec<String> {
 }
 
 /// Turns a title into the file-name slug `rite` uses — the same rules as
-/// `agile_md::task::slugify` (letters from other scripts transliterated,
+/// `rite_lib::task::slugify` (letters from other scripts transliterated,
 /// symbols as separators, at most 50 characters), so a branch name the
 /// editor derives matches the one `rite` would. `rite-ui` tests the two agree.
 pub fn slugify(title: &str) -> String {

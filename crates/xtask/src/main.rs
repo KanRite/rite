@@ -1,4 +1,4 @@
-//! Building, checking and installing agile-md from a clone, the same way on
+//! Building, checking and installing KanRite from a clone, the same way on
 //! Linux, macOS and Windows (ticket 318).
 //!
 //! ```text

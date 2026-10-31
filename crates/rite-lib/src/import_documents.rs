@@ -9,7 +9,7 @@
 //! links inside the tree still work.
 //!
 //! Documents are pushed straight to main, with git as their history
-//! (agile-md-documents' ADR 0007, ticket 170): the files are committed on
+//! (kanrite-documents' ADR 0007, ticket 170): the files are committed on
 //! the repository's default branch, after catching up with origin, and
 //! pushed. It used to make a `chore/import-documents-…` branch and open a
 //! pull request.

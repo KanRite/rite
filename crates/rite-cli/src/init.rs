@@ -3,10 +3,10 @@
 //! board here.
 //!
 //! Two sibling repositories, not one (`adr/rfc/0003-ticket-repository-topology-and-team-collaboration.md`
-//! in `agile-md-documents`): `{project}-tickets` behaves exactly as it
+//! in `kanrite-documents`): `{project}-tickets` behaves exactly as it
 //! always has — a board, direct pushes, no PR. `{project}-documents` holds
 //! ADRs, RFCs, docs and ideas, pushed straight to main too since
-//! agile-md-documents' ADR 0007 (it was PR-reviewed before). (Board
+//! kanrite-documents' ADR 0007 (it was PR-reviewed before). (Board
 //! settings live in the tickets repository, ticket 111.) Both get the same
 //! branch protection: no force-push or deletion of main (ticket 174).
 
@@ -16,13 +16,13 @@ use std::process::Command;
 
 use anyhow::{Context, Result, bail};
 
-use agile_md::board::Board;
-use agile_md::board_settings::User;
-use agile_md::sync::{self, Purpose};
-use agile_md::transition::Event;
-use agile_md::{board_settings, git, names, registry::Registry};
+use rite_lib::board::Board;
+use rite_lib::board_settings::User;
+use rite_lib::sync::{self, Purpose};
+use rite_lib::transition::Event;
+use rite_lib::{board_settings, git, names, registry::Registry};
 
-use agile_md::github;
+use rite_lib::github;
 
 pub fn run(project: String, local_only: bool, org: Option<String>) -> Result<()> {
     board_settings::validate_project_name(&project)?;
@@ -150,7 +150,7 @@ fn init_documents(base: &Path, project: &str, org: Option<&str>) -> Result<PathB
 
 /// A new tickets or documents repository's `.gitattributes` (ticket 277):
 /// every text file LF in every checkout. Git for Windows checks text out
-/// CRLF by default; rite reads that anyway (`agile_md::eol`), but with this
+/// CRLF by default; rite reads that anyway (`rite_lib::eol`), but with this
 /// a Windows clone holds the same bytes as anyone else's, and an editor
 /// there keeps to LF. Only for a repository `init` creates: an existing one
 /// would need a commit of its own, and nothing changes a repository by
@@ -389,7 +389,7 @@ fn clone_or_create(base: &Path, full_name: &str, target: &Path) -> Result<bool> 
     match github_archived(full_name) {
         Some(archived) => {
             if archived {
-                agile_md::archive::gh("unarchive", full_name)?;
+                rite_lib::archive::gh("unarchive", full_name)?;
                 println!("unarchived {full_name} on GitHub");
             }
             let clone = Command::new("gh")
@@ -443,11 +443,11 @@ fn github_archived(full_name: &str) -> Option<bool> {
 /// (ticket 263), so what `init` writes can be pushed. A clone that isn't on
 /// GitHub, or that `gh` can't see, is left as it is.
 fn unarchive_on_github(target: &Path) -> Result<()> {
-    let Some(slug) = agile_md::import_issues::github_slug(target) else {
+    let Some(slug) = rite_lib::import_issues::github_slug(target) else {
         return Ok(());
     };
     if github_archived(&slug) == Some(true) {
-        agile_md::archive::gh("unarchive", &slug)?;
+        rite_lib::archive::gh("unarchive", &slug)?;
         println!("unarchived {slug} on GitHub");
     }
     Ok(())
@@ -459,12 +459,12 @@ fn unarchive_on_github(target: &Path) -> Result<()> {
 /// registered again. `rite clone --all` fetches the rest.
 fn bring_back(base: &Path, tickets: &Path) -> Result<()> {
     let board = Board::in_repo(tickets);
-    if !agile_md::archive::is_archived(&board) {
+    if !rite_lib::archive::is_archived(&board) {
         return Ok(());
     }
     let mut keep = |_: &Board| -> Result<Vec<String>> { Ok(Vec::new()) };
     for event in
-        agile_md::archive::set_archived(&board, false, true, &mut agile_md::archive::gh, &mut keep)?
+        rite_lib::archive::set_archived(&board, false, true, &mut rite_lib::archive::gh, &mut keep)?
     {
         match event {
             Event::Info(text) => println!("{text}"),

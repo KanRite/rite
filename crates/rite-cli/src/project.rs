@@ -6,9 +6,9 @@ use std::path::Path;
 
 use anyhow::{Result, bail};
 
-use agile_md::board::Board;
-use agile_md::current_project::{self, ProjectEntry};
-use agile_md::transition::Event;
+use rite_lib::board::Board;
+use rite_lib::current_project::{self, ProjectEntry};
+use rite_lib::transition::Event;
 
 use crate::form;
 
@@ -26,13 +26,13 @@ pub fn list() -> Result<()> {
     for project in &projects {
         let marker = if current
             .as_deref()
-            .is_some_and(|name| agile_md::names::same(name, &project.name))
+            .is_some_and(|name| rite_lib::names::same(name, &project.name))
         {
             '*'
         } else {
             ' '
         };
-        let archived = if agile_md::archive::is_archived(&Board::in_repo(&project.tickets)) {
+        let archived = if rite_lib::archive::is_archived(&Board::in_repo(&project.tickets)) {
             "  (archived)"
         } else {
             ""
@@ -88,7 +88,7 @@ pub fn use_project(name: Option<String>) -> Result<()> {
     // (ticket 338): `rite project use KanRite` finds `kanrite`.
     let matching: Vec<&String> = names
         .iter()
-        .filter(|candidate| agile_md::names::same(candidate, &name))
+        .filter(|candidate| rite_lib::names::same(candidate, &name))
         .collect();
     let name = match matching.as_slice() {
         [] => bail!(
@@ -125,7 +125,7 @@ pub fn archive(name: Option<String>, on: bool) -> Result<()> {
             match projects.iter().find(|p| p.name == name).or_else(|| {
                 projects
                     .iter()
-                    .find(|p| agile_md::names::same(&p.name, &name))
+                    .find(|p| rite_lib::names::same(&p.name, &name))
             }) {
                 Some(project) => Board::in_repo(&project.tickets),
                 None => bail!(
@@ -144,7 +144,7 @@ pub fn archive(name: Option<String>, on: bool) -> Result<()> {
     if !board.root.is_dir() {
         bail!("no board at {}", board.root.display());
     }
-    agile_md::project_trust::check(&board)?;
+    rite_lib::project_trust::check(&board)?;
     let report = |events: Vec<Event>| {
         for event in events {
             match event {
@@ -153,26 +153,26 @@ pub fn archive(name: Option<String>, on: bool) -> Result<()> {
             }
         }
     };
-    report(agile_md::sync::catch_up(
+    report(rite_lib::sync::catch_up(
         &board,
-        agile_md::sync::Purpose::Write,
+        rite_lib::sync::Purpose::Write,
     )?);
-    report(agile_md::archive::set_archived(
+    report(rite_lib::archive::set_archived(
         &board,
         on,
         true,
-        &mut agile_md::archive::gh,
-        &mut agile_md::archive::forget,
+        &mut rite_lib::archive::gh,
+        &mut rite_lib::archive::forget,
     )?);
     // Back on rite here (ticket 263): archiving took it off this machine.
-    if !on && !agile_md::archive::is_archived(&board) {
+    if !on && !rite_lib::archive::is_archived(&board) {
         let root = board.repo_root().to_path_buf();
         crate::init::register(&root)?;
-        let project = agile_md::current_project::project_name(&root);
+        let project = rite_lib::current_project::project_name(&root);
         if let Some(dir) = root.parent() {
-            let documents = agile_md::names::find_folder(dir, &format!("{project}-documents"))
+            let documents = rite_lib::names::find_folder(dir, &format!("{project}-documents"))
                 .unwrap_or_else(|| dir.join(format!("{project}-documents")));
-            if agile_md::git::is_repo_dir(&documents) {
+            if rite_lib::git::is_repo_dir(&documents) {
                 crate::init::register(&documents)?;
             }
         }
@@ -191,7 +191,7 @@ pub fn keep_existing(dir: &Path, added: &str) -> Result<()> {
     Ok(())
 }
 
-/// `agile-md-tickets, agile-md-documents` — relative to the folder, since
+/// `kanrite-tickets, kanrite-documents` — relative to the folder, since
 /// that's where the list was asked for.
 fn repositories(dir: &Path, project: &ProjectEntry) -> String {
     [Some(&project.tickets), project.documents.as_ref()]

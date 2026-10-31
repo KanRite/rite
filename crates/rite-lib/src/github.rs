@@ -1,6 +1,6 @@
 //! Branch protection on `main`, via `gh api` — the same shell-out philosophy
 //! `git.rs` already states for git itself, extended to the forge (see
-//! `adr/rfc/0004-reducing-forge-specific-dependencies.md` in `agile-md-documents`).
+//! `adr/rfc/0004-reducing-forge-specific-dependencies.md` in `kanrite-documents`).
 //!
 //! Protection needs the branch to exist first, so this is only ever called
 //! once a repository has its first commit pushed.
@@ -33,7 +33,7 @@ pub enum ProtectionOutcome {
 ///
 /// **One tier, for tickets and documents alike** (ticket 174). Documents
 /// used to also require an approving review, which made sense while they
-/// were PR-reviewed; since agile-md-documents' ADR 0007 they're pushed
+/// were PR-reviewed; since kanrite-documents' ADR 0007 they're pushed
 /// straight to main like tickets, and a review rule would reject every one
 /// of those pushes on a plan that enforces it. `require_last_push_approval`
 /// is never set either: that's what once made a solo pusher's own PRs

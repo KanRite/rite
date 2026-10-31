@@ -311,8 +311,8 @@ mod tests {
     #[ignore]
     fn transcribes_a_recording() {
         let (Ok(wav), Ok(expect)) = (
-            agile_md::renamed::var("RITE_SPEECH_WAV"),
-            agile_md::renamed::var("RITE_SPEECH_EXPECT"),
+            rite_lib::renamed::var("RITE_SPEECH_WAV"),
+            rite_lib::renamed::var("RITE_SPEECH_EXPECT"),
         ) else {
             return;
         };

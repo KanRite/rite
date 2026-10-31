@@ -114,7 +114,7 @@ jobs:
         run: trunk build --release
       - name: Library tests (rite-lib)
         if: ${{ !cancelled() }}
-        run: cargo test --locked -p agile-md --no-fail-fast
+        run: cargo test --locked -p rite-lib --no-fail-fast
       - name: Shared model tests (rite-ui-model)
         if: ${{ !cancelled() }}
         run: cargo test --locked -p rite-ui-model --no-fail-fast

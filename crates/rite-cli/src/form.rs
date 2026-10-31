@@ -16,8 +16,8 @@ use inquire::autocompletion::{Autocomplete, Replacement};
 use inquire::validator::Validation;
 use inquire::{Confirm, CustomUserError, InquireError, Select, Text};
 
-use agile_md::branch;
-use agile_md::task::Task;
+use rite_lib::branch;
+use rite_lib::task::Task;
 
 static NO_INPUT: OnceLock<bool> = OnceLock::new();
 
@@ -31,7 +31,7 @@ pub fn available() -> bool {
     if *NO_INPUT.get().unwrap_or(&false) {
         return false;
     }
-    if agile_md::renamed::var("RITE_NO_INPUT").as_deref() == Ok("1") {
+    if rite_lib::renamed::var("RITE_NO_INPUT").as_deref() == Ok("1") {
         return false;
     }
     io::stdin().is_terminal() && io::stdout().is_terminal()
@@ -99,7 +99,7 @@ pub fn body(rendered: &str, editor: &OsStr) -> Result<String> {
         bail!("{spec} exited with {status}; no task created");
     }
 
-    let edited = agile_md::eol::read(file.path()).context("reading the edited ticket")?;
+    let edited = rite_lib::eol::read(file.path()).context("reading the edited ticket")?;
     if edited.trim().is_empty() {
         bail!("the ticket was left empty; no task created");
     }

@@ -6,9 +6,9 @@
 
 use anyhow::{Context, Result, bail};
 
-use agile_md::board::Board;
-use agile_md::documents::{self, Kind};
-use agile_md::documents_edit;
+use rite_lib::board::Board;
+use rite_lib::documents::{self, Kind};
+use rite_lib::documents_edit;
 
 /// What `rite docs` was asked to do.
 pub enum Action {
@@ -80,8 +80,8 @@ pub fn run(action: Action) -> Result<()> {
         }
         Action::Pins => {
             let root = own_root()?;
-            let me = agile_md::doc_pins::me(&root)?;
-            let pins = agile_md::doc_pins::pins(&root, &me);
+            let me = rite_lib::doc_pins::me(&root)?;
+            let pins = rite_lib::doc_pins::pins(&root, &me);
             if pins.is_empty() {
                 println!("nothing pinned — `rite docs pin <repository>/<path>` pins one");
             }
@@ -98,7 +98,7 @@ pub fn run(action: Action) -> Result<()> {
         }
         Action::Pin { document, on } => {
             let root = own_root()?;
-            let me = agile_md::doc_pins::me(&root)?;
+            let me = rite_lib::doc_pins::me(&root)?;
             let Some((source, path)) = document.split_once('/') else {
                 bail!(
                     "name it as <repository>/<path>, e.g. {}/docs/guide.md",
@@ -119,7 +119,7 @@ pub fn run(action: Action) -> Result<()> {
                     bail!("{document} isn't a document here");
                 }
             }
-            let done = agile_md::doc_pins::set(&root, &me, source, path, on)?;
+            let done = rite_lib::doc_pins::set(&root, &me, source, path, on)?;
             if let Some(warning) = &done.warning {
                 eprintln!("rite: {warning}");
             }
