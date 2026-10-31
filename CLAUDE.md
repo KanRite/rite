@@ -2054,7 +2054,7 @@ changes):
   opened with (`ContentHash` as 16 hex digits, since a page can't hold a
   `u64`), priority/points validated, the lease fields always kept as on
   disk. The page derives `branch-name` from the title with
-  `rite_ui_model::slugify`, which must match `agile_md::task::slugify` —
+  `rite_ui_model::slugify`, which must match `rite_lib::task::slugify` —
   `rite-ui`'s tests check they agree.
 - **The Backlogs column lists compact boxes** (ticket 109): each epic or
   sprint shows only its name and an amount — an epic's ticket count, a
@@ -2096,7 +2096,7 @@ changes):
   throw away filters and sort.
 - **The landing page** (ticket 020, `rite-ui-web/src/home.rs`): riteui
   always opens on it (`Ctx.view`: `View::Home`/`View::Board`). The `home`
-  command returns `rite_ui_model::Home` (My work from `agile_md::my_work`,
+  command returns `rite_ui_model::Home` (My work from `rite_lib::my_work`,
   and the projects); `set_project_hidden` flips `ui.hidden-projects`.
   Opening a project or a work item reuses `set_tasks_dir` (which also
   remembers it as `ui.board`), then `open_ticket`. On Home the header

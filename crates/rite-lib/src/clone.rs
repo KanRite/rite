@@ -125,20 +125,20 @@ mod tests {
     fn the_url_is_the_tickets_origin_with_the_name_swapped_in() {
         for (origin, want) in [
             (
-                "git@github.com-oldippy:agile-md/agile-md-tickets.git",
-                "git@github.com-oldippy:agile-md/amd.git",
+                "git@github.com-oldippy:acme/acme-tickets.git",
+                "git@github.com-oldippy:acme/amd.git",
             ),
             (
-                "ssh://git@github.com/agile-md/agile-md-tickets",
-                "ssh://git@github.com/agile-md/amd",
+                "ssh://git@github.com/acme/acme-tickets",
+                "ssh://git@github.com/acme/amd",
             ),
             (
-                "https://github.com/agile-md/agile-md-tickets.git/",
-                "https://github.com/agile-md/amd.git",
+                "https://github.com/acme/acme-tickets.git/",
+                "https://github.com/acme/amd.git",
             ),
-            ("/srv/git/agile-md-tickets.git", "/srv/git/amd.git"),
-            ("../agile-md-tickets", "../amd"),
-            ("host:agile-md-tickets.git", "host:amd.git"),
+            ("/srv/git/acme-tickets.git", "/srv/git/amd.git"),
+            ("../acme-tickets", "../amd"),
+            ("host:acme-tickets.git", "host:amd.git"),
         ] {
             assert_eq!(sibling_url(origin, "amd"), want, "{origin}");
         }

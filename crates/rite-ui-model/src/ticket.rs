@@ -498,7 +498,7 @@ mod tests {
 
     #[test]
     fn the_repository_round_trips_and_is_normalised() {
-        let ticket = "---\nid: \"009\"\ntitle: \"T\"\nrepository: \"agile-md/amd\"\n---\nBody\n";
+        let ticket = "---\nid: \"009\"\ntitle: \"T\"\nrepository: \"acme/amd\"\n---\nBody\n";
         let mut fields = Fields::from(&crate::parse_frontmatter(ticket));
         assert_eq!(fields.repository, "amd");
         fields.repository = "another-repository".into();

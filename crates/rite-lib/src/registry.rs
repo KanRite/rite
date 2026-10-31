@@ -477,30 +477,15 @@ mod tests {
         let other = repo(&root, "other");
         git(
             &one,
-            &[
-                "remote",
-                "add",
-                "origin",
-                "git@github.com:Agile-MD/board.git",
-            ],
+            &["remote", "add", "origin", "git@github.com:Acme/board.git"],
         );
         git(
             &two,
-            &[
-                "remote",
-                "add",
-                "origin",
-                "https://github.com/agile-md/board",
-            ],
+            &["remote", "add", "origin", "https://github.com/acme/board"],
         );
         git(
             &other,
-            &[
-                "remote",
-                "add",
-                "origin",
-                "https://github.com/agile-md/other",
-            ],
+            &["remote", "add", "origin", "https://github.com/acme/other"],
         );
         let mut registry = Registry::default();
         for clone in [&one, &two, &other] {

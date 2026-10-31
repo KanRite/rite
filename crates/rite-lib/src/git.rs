@@ -1506,18 +1506,14 @@ mod tests {
     fn remotes_normalise_to_host_owner_repo() {
         let none = |_: &str| None;
         for url in [
-            "git@github.com:Agile-MD/amd.git",
-            "ssh://git@github.com/agile-md/amd",
-            "ssh://git@github.com:22/agile-md/amd.git/",
-            "https://github.com/agile-md/amd.git",
-            "https://user@GitHub.com/agile-md/amd/",
-            "git+ssh://github.com/agile-md/amd.git",
+            "git@github.com:Acme/amd.git",
+            "ssh://git@github.com/acme/amd",
+            "ssh://git@github.com:22/acme/amd.git/",
+            "https://github.com/acme/amd.git",
+            "https://user@GitHub.com/acme/amd/",
+            "git+ssh://github.com/acme/amd.git",
         ] {
-            assert_eq!(
-                normalise_remote(url, none),
-                "github.com/agile-md/amd",
-                "{url}"
-            );
+            assert_eq!(normalise_remote(url, none), "github.com/acme/amd", "{url}");
         }
     }
 
@@ -1525,14 +1521,14 @@ mod tests {
     fn an_ssh_host_alias_resolves_to_the_real_host() {
         let sgs = |host: &str| (host == "github.com-oldippy").then(|| "GitHub.com".to_string());
         assert_eq!(
-            normalise_remote("git@github.com-oldippy:agile-md/amd.git", sgs),
-            "github.com/agile-md/amd"
+            normalise_remote("git@github.com-oldippy:acme/amd.git", sgs),
+            "github.com/acme/amd"
         );
         // Only SSH hosts are aliases; an https host is taken as written.
         let everything = |_: &str| Some("elsewhere".to_string());
         assert_eq!(
-            normalise_remote("https://github.com/agile-md/amd", everything),
-            "github.com/agile-md/amd"
+            normalise_remote("https://github.com/acme/amd", everything),
+            "github.com/acme/amd"
         );
     }
 
