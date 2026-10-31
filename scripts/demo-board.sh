@@ -8,14 +8,14 @@
 # real data. For screenshots, build it outside your home folder (e.g.
 # /tmp/acme): riteui's header shows the board's path.
 #
-#   scripts/demo-board.sh [DIR]      # default: ./agile-md-demo
+#   scripts/demo-board.sh [DIR]      # default: ./kanrite-demo
 #
-# It keeps its own agile-md config in DIR/config, so your registry, theme and
+# It keeps its own KanRite config in DIR/config, so your registry, theme and
 # remembered board are untouched. Open it with the command it prints at the
 # end. Run it again to rebuild from scratch (it refuses a DIR it didn't make).
 set -euo pipefail
 
-DIR="${1:-./agile-md-demo}"
+DIR="${1:-./kanrite-demo}"
 SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Which rite: $AMD if given, else the installed one, else a build in this
 # clone. Never a stale build over one you asked for.
@@ -27,12 +27,12 @@ fi
 [ -n "${AMD}" ] || { echo "rite not found: install it, or build it here first" >&2; exit 1; }
 
 if [ -e "${DIR}" ]; then
-  [ -f "${DIR}/.agile-md-demo" ] || { echo "${DIR} exists and isn't a demo board; choose another DIR" >&2; exit 1; }
+  [ -f "${DIR}/.kanrite-demo" ] || [ -f "${DIR}/.agile-md-demo" ] || { echo "${DIR} exists and isn't a demo board; choose another DIR" >&2; exit 1; }
   rm -rf "${DIR}"
 fi
 mkdir -p "${DIR}"
 DIR="$(cd "${DIR}" && pwd)"
-touch "${DIR}/.agile-md-demo"
+touch "${DIR}/.kanrite-demo"
 
 export XDG_CONFIG_HOME="${DIR}/config" RITE_NO_INPUT=1 RITE_NO_BRANCH=1 RITE_SYNC=0
 

@@ -7,7 +7,7 @@ name: Dependabot gate
 # passed. Ready ones are approved (as the code owner whose token is
 # DEPENDABOT_APPROVER_TOKEN) and auto-merged; one held by an advisory is
 # looked at again each week; the rest get an issue, which reaches the
-# agile-md board as a TRIAGE ticket.
+# KanRite board as a TRIAGE ticket.
 #
 # Approving happens only in the weekly and manual runs: workflows Dependabot
 # starts can't read Actions secrets, so those runs only assess.

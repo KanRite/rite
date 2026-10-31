@@ -1,4 +1,4 @@
-# agile-md installer for Windows (ticket 282): install.sh's counterpart.
+# KanRite installer for Windows (ticket 282): install.sh's counterpart.
 #
 #   irm https://raw.githubusercontent.com/kanrite/rite/v5/install.ps1 | iex
 #   & ([scriptblock]::Create((irm https://raw.githubusercontent.com/kanrite/rite/v5/install.ps1))) -Version v5.0.0
@@ -56,14 +56,14 @@ if ($Dir -eq "") {
 function Uninstaller([string]$bin, [string]$method) {
     $quoted = $bin.Replace("'", "''")
     $head = @"
-# agile-md's uninstaller, written by install.ps1 (ticket 282).
-# agile-md install: $method
+# KanRite's uninstaller, written by install.ps1 (ticket 282).
+# kanrite install: $method
 #
 #   rite-uninstall.ps1 [-All] [-Yes]
 #
 # Removes rite.exe, riteui.exe, this script, the Start menu shortcut, the
 # Settings > Apps entry and the folder on your PATH. Then asks whether to
-# remove your agile-md settings and data too (-All: yes without asking;
+# remove your KanRite settings and data too (-All: yes without asking;
 # -Yes: never asks, so with no -All they stay). Your projects (the tickets,
 # documents and ideas in your git repositories) are never touched.
 param([switch]`$All, [switch]`$Yes)
@@ -117,7 +117,7 @@ if ($removed.Count -gt 0) {
     Write-Host 'Removed:'
     $removed | ForEach-Object { Write-Host "  $_" }
 } else {
-    Write-Host "agile-md's programs were not in $Bin."
+    Write-Host "KanRite's programs were not in $Bin."
 }
 
 # Your own settings and data: kept unless you say. On Windows rite keeps them
@@ -143,7 +143,7 @@ if ($present.Count -gt 0) {
     $removeData = [bool]$All
     if (-not $All -and -not $Yes) {
         Write-Host ''
-        Write-Host 'Your agile-md settings and data are still here:'
+        Write-Host 'Your KanRite settings and data are still here:'
         $present | ForEach-Object { Write-Host "  $_" }
         $recovered = $present | ForEach-Object { Join-Path $_ 'recovered' } | Where-Object { Test-Path -LiteralPath $_ }
         foreach ($r in $recovered) {
@@ -197,16 +197,16 @@ try {
 switch -Regex ($arch) {
     '^(X64|AMD64)$' { $target = 'x86_64-pc-windows-msvc' }
     '^(Arm64|ARM64)$' { $target = 'aarch64-pc-windows-msvc' }
-    default { Fail "agile-md's downloads are for x64 and Arm64 processors; this one is $arch." }
+    default { Fail "KanRite's downloads are for x64 and Arm64 processors; this one is $arch." }
 }
 
 $git = Get-Command git -ErrorAction SilentlyContinue
 if (-not $git) {
-    Fail "agile-md needs git 2.29 or later, and git isn't installed. Install Git for Windows (https://git-scm.com/download/win, or: winget install Git.Git), then run this again."
+    Fail "KanRite needs git 2.29 or later, and git isn't installed. Install Git for Windows (https://git-scm.com/download/win, or: winget install Git.Git), then run this again."
 }
 if ((& git --version) -match '(\d+)\.(\d+)') {
     if ([int]$Matches[1] -lt 2 -or ([int]$Matches[1] -eq 2 -and [int]$Matches[2] -lt 29)) {
-        Fail "agile-md needs git 2.29 or later; this machine has $(& git --version). Update git, then run this again."
+        Fail "KanRite needs git 2.29 or later; this machine has $(& git --version). Update git, then run this again."
     }
 }
 
@@ -230,7 +230,7 @@ try {
         try {
             Invoke-WebRequest -Uri $url -OutFile (Join-Path $tmp 'rite.zip') -UseBasicParsing
         } catch {
-            Fail "couldn't download agile-md $Version for $target from https://github.com/$Repo/releases: check your connection, or that the version exists. ($($_.Exception.Message))"
+            Fail "couldn't download KanRite $Version for $target from https://github.com/$Repo/releases: check your connection, or that the version exists. ($($_.Exception.Message))"
         }
     }
     Expand-Archive -LiteralPath (Join-Path $tmp 'rite.zip') -DestinationPath $tmp -Force
@@ -290,7 +290,7 @@ if (Test-Path -LiteralPath $riteui) {
     $link.TargetPath = $riteui
     $link.WorkingDirectory = [Environment]::GetFolderPath('UserProfile')
     $link.IconLocation = "$riteui,0"
-    $link.Description = 'KanRite: the agile-md desktop board'
+    $link.Description = 'KanRite: the desktop board'
     $link.Save()
     Write-Host "Added $AppName to the Start menu"
 }

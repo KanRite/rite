@@ -2872,7 +2872,7 @@ in_ins() { HOME="${ins}/home" XDG_DATA_HOME="${ins}/home/.local/share" XDG_CONFI
 assert "install.sh puts in rite, riteui, the amd and amdui links and rite-uninstall, and takes away 4.x's" \
   bash -c "$(declare -f in_ins); ins='${ins}'; in_ins bash '${ROOT}/install.sh' --dir '${ins}/bin' --zip '${ins}/release.zip' >/dev/null 2>&1 \
     && '${ins}/bin/rite' --version | grep -q '^rite ' && test -L '${ins}/bin/amd' && [ \"\$(readlink '${ins}/bin/amd')\" = rite ] \
-    && grep -qx '# agile-md install: release' '${ins}/bin/rite-uninstall' && ! test -e '${ins}/bin/amd-uninstall'"
+    && grep -qx '# kanrite install: release' '${ins}/bin/rite-uninstall' && ! test -e '${ins}/bin/amd-uninstall'"
 # install.sh installs the launcher on Linux only: no .desktop files elsewhere.
 if [ "$(uname -s)" = "Linux" ] && [ -x "${AMDUI_BIN:-${ROOT}/target/debug/riteui}" ]; then
   assert "...and one launcher, riteui's: 4.x's amdui.desktop and its icon are gone" \
