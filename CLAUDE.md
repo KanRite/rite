@@ -710,7 +710,8 @@ redundant. Their history is in git if it is ever wanted again.
   tests (ticket 338) cover all three kinds of disk.
   **A failing workflow reaches the board** (ticket 348, `workflow-failures.yml`):
   when a listed workflow finishes on main, on a schedule or for a `v` tag, a failure
-  opens a GitHub issue (one per workflow and branch, `scripts/workflow-report.sh`),
+  opens a GitHub issue (one per workflow and branch, `scripts/workflow-report.sh`,
+  written with the repository secret `ISSUE_GENERATOR_TOKEN`),
   which rite's issue import turns into a TRIAGE ticket, and a later pass closes it.
   Not pull requests or Dependabot's branches. `workflow_run` needs every workflow
   named, so `scripts/check-failure-reporter.sh` (the `shell` job) fails when a new

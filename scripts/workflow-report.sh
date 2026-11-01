@@ -21,7 +21,7 @@
 #   RUN_URL            the run's address
 #
 # DRY_RUN=1 prints what it would do and changes nothing. GH_TOKEN must be able
-# to write issues.
+# to write issues (in CI, the repository secret ISSUE_GENERATOR_TOKEN).
 set -euo pipefail
 
 MODE="${1:?usage: workflow-report.sh failed|passed}"
