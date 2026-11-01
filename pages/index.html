@@ -42,7 +42,7 @@
       </div>
       <div>
         <h2>One set of rules</h2>
-        <p><code>amd</code> on the command line and <code>amdui</code> on the desktop share one library, so a move follows the same rules wherever it's made.</p>
+        <p><code>rite</code> on the command line and <code>riteui</code> on the desktop share one library, so a move follows the same rules wherever it's made.</p>
       </div>
     </section>
 
@@ -93,7 +93,7 @@
         <article>
           <h3>Teams</h3>
           <ul>
-            <li><code>amd init</code> and <code>amd join</code> set a project up</li>
+            <li><code>rite init</code> and <code>rite join</code> set a project up</li>
             <li>Several repositories per project, several projects</li>
             <li>New repositories made from the ticket that needs them</li>
             <li>Team settings for admins; your own preferences</li>
@@ -114,7 +114,7 @@
         <article>
           <h3>AI, if you want it</h3>
           <ul>
-            <li><code>amd mcp</code> for Claude Code, Copilot, Cursor, Codex, Gemini CLI and more</li>
+            <li><code>rite mcp</code> for Claude Code, Copilot, Cursor, Codex, Gemini CLI and more</li>
             <li>Reads the board, documents, ideas and what's on screen</li>
             <li>Changes tickets under the same rules, every change committed</li>
             <li>No API keys, nothing runs unless your AI tool starts it</li>
@@ -155,7 +155,7 @@
           <figcaption>The landing page: your work across every project.</figcaption>
         </figure>
         <figure class="shot">
-          <img src="screenshots/panel.png" alt="The board with the terminal open in the bottom panel, showing amd board" width="1600" height="852" loading="lazy">
+          <img src="screenshots/panel.png" alt="The board with the terminal open in the bottom panel, showing rite board" width="1600" height="852" loading="lazy">
           <figcaption>The bottom panel: a terminal, and an AI tab for your own AI tool.</figcaption>
         </figure>
       </div>
@@ -170,13 +170,13 @@
       </div>
       <p id="copy-status" class="status" role="status" aria-live="polite"></p>
       <p id="system-note" class="note" hidden></p>
-      <p>It installs <code>amd</code>, the command line, and <code>amdui</code>, the desktop board, and on Linux adds the board to your application menu. Run it again to update. If your system isn't one agile-md runs on, it tells you why and changes nothing; on Linux the desktop board needs WebKitGTK 4.1, and the installer names the package to add if it's missing.</p>
+      <p>It installs <code>rite</code>, the command line, and <code>riteui</code>, the desktop board, and on Linux adds the board to your application menu. Run it again to update. If your system isn't one KanRite runs on, it tells you why and changes nothing; on Linux the desktop board needs WebKitGTK 4.1, and the installer names the package to add if it's missing.</p>
       <p>On Windows the command is <code>irm https://raw.githubusercontent.com/kanrite/rite/v5/install.ps1 | iex</code>: it installs for you alone, with no administrator needed, adds KanRite to the Start menu and lists it in Settings &gt; Apps.</p>
-      <p>To uninstall, run <code>amd-uninstall</code> (on Windows, uninstall KanRite in Settings &gt; Apps): it removes the programs and asks before removing your settings. Your projects are never touched.</p>
+      <p>To uninstall, run <code>rite-uninstall</code> (on Windows, uninstall KanRite in Settings &gt; Apps): it removes the programs and asks before removing your settings. Your projects are never touched.</p>
       <p>Then start a project, from the folder you keep projects in:</p>
-      <pre><code>amd init my-project       # makes my-project-tickets and my-project-documents on GitHub
-amd new "My first task"
-amdui                     # the desktop board</code></pre>
+      <pre><code>rite init my-project      # makes my-project-tickets and my-project-documents on GitHub
+rite new "My first task"
+riteui                    # the desktop board</code></pre>
       <p>The <a href="https://github.com/kanrite/rite/blob/main/docs/user-guide.md">user guide</a> covers everything else: tickets, columns, sprints, the desktop board, documents, ideas, roadmaps and teams.</p>
       <p class="aside">Building from source is in <a href="https://github.com/kanrite/rite/blob/main/CONTRIBUTING.md#building-from-source">CONTRIBUTING.md</a>.</p>
     </section>
