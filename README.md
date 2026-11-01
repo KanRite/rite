@@ -21,7 +21,7 @@ markdown, right beside your work: not in someone else's cloud. KanRite works
 well with AI, but AI is never a requirement; it's just as useful to a team or
 a solo developer without it.
 
-![The board: a running sprint beside the backlog, todo, doing and done](pages/screenshots/board.png)
+![The board in the default white and sky blue: a running sprint and two epics beside the backlog, todo, doing and done](pages/screenshots/board.png)
 
 ## Main features
 

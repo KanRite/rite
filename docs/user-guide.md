@@ -503,6 +503,9 @@ disagree.
   white page with sky blue buttons, picked so text and buttons are easy to
   read (the buttons' contrast meets WCAG AA), even when your system is in
   dark mode. Dark is one click away.
+
+  ![The board in the default white and sky blue](../pages/screenshots/board.png)
+
 - **The update bar.** When a newer KanRite is out, an orange bar across
   the top of every screen says so, with **What's new** (the release notes),
   **Update** and **Later**. Update installs it and restarts riteui (close a

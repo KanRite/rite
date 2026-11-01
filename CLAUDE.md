@@ -343,7 +343,7 @@ redundant. Their history is in git if it is ever wanted again.
   sits above the header on every view, asks on start and every 30 minutes
   (its offer is `Ctx.update_offer`, so a check by hand can raise it),
   and is **orange**: the accents are only sky, indigo, teal and slate (rose and
-  amber were dropped, a saved one reads back as indigo), so nothing else
+  amber were dropped, a saved one reads back as the default, sky), so nothing else
   is orange. The required variant (no Later) is 193.
 - **Checking by hand** (ticket 304): `update::check_now(source, current,
   now, state)` → `Manual::{Newer, Current, Failed}` asks at once whatever
