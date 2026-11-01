@@ -26,9 +26,10 @@ on:
       - Release
     types: [completed]
 
+# The issues are written with the repository secret ISSUE_GENERATOR_TOKEN,
+# not the job's own token, which only checks the repository out.
 permissions:
   contents: read
-  issues: write
 
 jobs:
   report:
@@ -51,7 +52,7 @@ jobs:
       # a branch name is data, not a command.
       - name: Open or close the issue for ${{ github.event.workflow_run.name }}
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.ISSUE_GENERATOR_TOKEN }}
           WORKFLOW: ${{ github.event.workflow_run.name }}
           BRANCH: ${{ github.event.workflow_run.head_branch }}
           EVENT: ${{ github.event.workflow_run.event }}
