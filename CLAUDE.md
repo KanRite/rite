@@ -342,8 +342,8 @@ redundant. Their history is in git if it is ever wanted again.
   current}`) and `snooze_update`. The page's `update_bar.rs` `UpdateBar`
   sits above the header on every view, asks on start and every 30 minutes
   (its offer is `Ctx.update_offer`, so a check by hand can raise it),
-  and is **orange**: the accents are only indigo, teal and slate (rose and
-  amber were dropped, a saved one reads back as indigo), so nothing else
+  and is **orange**: the accents are only sky, indigo, teal and slate (rose and
+  amber were dropped, a saved one reads back as the default, sky), so nothing else
   is orange. The required variant (no Later) is 193.
 - **Checking by hand** (ticket 304): `update::check_now(source, current,
   now, state)` → `Manual::{Newer, Current, Failed}` asks at once whatever
@@ -2142,7 +2142,14 @@ changes):
   (`boards::admin_access`) and carries `Board.admin {allowed, note}`; the
   page hides the button and Admin shows the note. A convenience, not
   enforcement: the CLI's settings commands aren't gated. The colour scheme is `ui.theme`/
-  `ui.accent` in the same file.
+  `ui.accent` in the same file. **The default is light with the sky
+  accent** (ticket 343, `rite_ui_model::appearance`): a white page
+  (`app.rs`'s root is `bg-white`) with sky blue buttons, for everyone who
+  hasn't chosen, whatever the system's mode; an unknown saved key reads
+  back as it. Sky's `--accent-600` and `-500` are `sky-700` and `sky-800`
+  (`input.css`), because buttons are white text on 600 and hover to 500 and
+  sky-500 is 2.8:1 against white: keep any new accent's button shades at
+  4.5:1 or more. `accent-300` and `-700` are mapped for every accent.
 - **Documents** (ticket 129, `crates/rite-lib/src/documents.rs`):
   `View::Documents`, reached from each landing-page project row's
   **Documents / ADRs / Ideas / Shared** buttons (ticket 168), which set

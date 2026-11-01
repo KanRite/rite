@@ -1,6 +1,8 @@
 //! A user's colour scheme: light or dark (or follow the system), and an
 //! accent colour for buttons, filters and highlights. Saved in the user's
 //! own settings on this machine, never in the shared tickets repository.
+//! The default is light with the sky accent (ticket 343): a white page with
+//! sky blue buttons, chosen for accessibility, whatever the system's mode.
 
 use serde::{Deserialize, Serialize};
 
@@ -8,8 +10,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Theme {
-    #[default]
     System,
+    #[default]
     Light,
     Dark,
 }
@@ -53,22 +55,26 @@ impl Theme {
 /// The colour of buttons, filters and highlights. Red and orange aren't
 /// offered (ticket 192): red reads as an error, and orange is kept for the
 /// update bar, so neither can be mistaken for the accent. A saved `rose` or
-/// `amber` reads back as the default.
+/// `amber` reads back as the default. Sky (ticket 343) is drawn a shade
+/// darker than its name where white text sits on it, so buttons pass WCAG
+/// AA (see input.css).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Accent {
     #[default]
+    Sky,
     Indigo,
     Teal,
     Slate,
 }
 
 impl Accent {
-    pub const ALL: [Accent; 3] = [Accent::Indigo, Accent::Teal, Accent::Slate];
+    pub const ALL: [Accent; 4] = [Accent::Sky, Accent::Indigo, Accent::Teal, Accent::Slate];
 
     /// The `data-accent` value the stylesheet switches on.
     pub fn key(self) -> &'static str {
         match self {
+            Accent::Sky => "sky",
             Accent::Indigo => "indigo",
             Accent::Teal => "teal",
             Accent::Slate => "slate",
@@ -77,6 +83,7 @@ impl Accent {
 
     pub fn label(self) -> &'static str {
         match self {
+            Accent::Sky => "Sky",
             Accent::Indigo => "Indigo",
             Accent::Teal => "Teal",
             Accent::Slate => "Slate",
@@ -115,8 +122,8 @@ mod tests {
     #[test]
     fn red_and_orange_are_gone_and_read_back_as_the_default() {
         // Ticket 192: orange is the update bar's, red reads as an error.
-        assert_eq!(Accent::from_key("rose"), Accent::Indigo);
-        assert_eq!(Accent::from_key("amber"), Accent::Indigo);
+        assert_eq!(Accent::from_key("rose"), Accent::Sky);
+        assert_eq!(Accent::from_key("amber"), Accent::Sky);
         assert_eq!(Accent::from_key("teal"), Accent::Teal);
         assert!(
             Accent::ALL
@@ -126,9 +133,14 @@ mod tests {
     }
 
     #[test]
-    fn defaults_follow_the_system_in_indigo() {
+    fn defaults_to_light_in_sky() {
+        // Ticket 343: white and sky blue for anyone who hasn't chosen,
+        // whatever the system's mode; a saved choice still wins.
         let a = Appearance::default();
-        assert_eq!((a.theme, a.accent), (Theme::System, Accent::Indigo));
+        assert_eq!((a.theme, a.accent), (Theme::Light, Accent::Sky));
+        assert!(!a.theme.is_dark(true));
+        let saved = Appearance::from_keys("system", "indigo");
+        assert_eq!((saved.theme, saved.accent), (Theme::System, Accent::Indigo));
     }
 
     #[test]
@@ -139,8 +151,8 @@ mod tests {
         for a in Accent::ALL {
             assert_eq!(Accent::from_key(a.key()), a);
         }
-        assert_eq!(Theme::from_key("sepia"), Theme::System);
-        assert_eq!(Accent::from_key("chartreuse"), Accent::Indigo);
+        assert_eq!(Theme::from_key("sepia"), Theme::Light);
+        assert_eq!(Accent::from_key("chartreuse"), Accent::Sky);
     }
 
     #[test]

@@ -497,9 +497,15 @@ disagree.
   numbers on each project's row.
 - **Preferences**, your own settings on this machine, in
   `~/.config/kanrite/config`: the colour scheme (light, dark or the
-  system's, with an accent colour: indigo, teal or slate), the zoom, the board to open when riteui
+  system's, with an accent colour: sky, indigo, teal or slate), the zoom, the board to open when riteui
   starts outside a project, the AI tab's command, speech to text, read aloud,
-  and your editor.
+  and your editor. Until you choose, riteui is **light with sky blue**: a
+  white page with sky blue buttons, picked so text and buttons are easy to
+  read (the buttons' contrast meets WCAG AA), even when your system is in
+  dark mode. Dark is one click away.
+
+  ![The board in the default white and sky blue](../pages/screenshots/board.png)
+
 - **The update bar.** When a newer KanRite is out, an orange bar across
   the top of every screen says so, with **What's new** (the release notes),
   **Update** and **Later**. Update installs it and restarts riteui (close a

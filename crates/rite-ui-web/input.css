@@ -20,22 +20,44 @@
   --color-accent-50: var(--accent-50);
   --color-accent-100: var(--accent-100);
   --color-accent-200: var(--accent-200);
+  --color-accent-300: var(--accent-300);
   --color-accent-400: var(--accent-400);
   --color-accent-500: var(--accent-500);
   --color-accent-600: var(--accent-600);
+  --color-accent-700: var(--accent-700);
   --color-accent-800: var(--accent-800);
   --color-accent-900: var(--accent-900);
   --color-accent-950: var(--accent-950);
 }
 
+/* Sky, the default (ticket 343). Buttons are white text on accent-600
+   and hover to accent-500, so both are taken darker than their names:
+   sky-700 (5.9:1 against white) and sky-800 (7.6:1). Sky-500 itself is
+   2.8:1, short of WCAG AA's 4.5:1. */
 :root,
+[data-accent="sky"] {
+  --accent-50: var(--color-sky-50);
+  --accent-100: var(--color-sky-100);
+  --accent-200: var(--color-sky-200);
+  --accent-300: var(--color-sky-300);
+  --accent-400: var(--color-sky-400);
+  --accent-500: var(--color-sky-800);
+  --accent-600: var(--color-sky-700);
+  --accent-700: var(--color-sky-700);
+  --accent-800: var(--color-sky-800);
+  --accent-900: var(--color-sky-900);
+  --accent-950: var(--color-sky-950);
+}
+
 [data-accent="indigo"] {
   --accent-50: var(--color-indigo-50);
   --accent-100: var(--color-indigo-100);
   --accent-200: var(--color-indigo-200);
+  --accent-300: var(--color-indigo-300);
   --accent-400: var(--color-indigo-400);
   --accent-500: var(--color-indigo-500);
   --accent-600: var(--color-indigo-600);
+  --accent-700: var(--color-indigo-700);
   --accent-800: var(--color-indigo-800);
   --accent-900: var(--color-indigo-900);
   --accent-950: var(--color-indigo-950);
@@ -45,23 +67,25 @@
   --accent-50: var(--color-teal-50);
   --accent-100: var(--color-teal-100);
   --accent-200: var(--color-teal-200);
+  --accent-300: var(--color-teal-300);
   --accent-400: var(--color-teal-400);
   --accent-500: var(--color-teal-500);
   --accent-600: var(--color-teal-600);
+  --accent-700: var(--color-teal-700);
   --accent-800: var(--color-teal-800);
   --accent-900: var(--color-teal-900);
   --accent-950: var(--color-teal-950);
 }
 
-
-
 [data-accent="slate"] {
   --accent-50: var(--color-slate-50);
   --accent-100: var(--color-slate-100);
   --accent-200: var(--color-slate-200);
+  --accent-300: var(--color-slate-300);
   --accent-400: var(--color-slate-400);
   --accent-500: var(--color-slate-500);
   --accent-600: var(--color-slate-600);
+  --accent-700: var(--color-slate-700);
   --accent-800: var(--color-slate-800);
   --accent-900: var(--color-slate-900);
   --accent-950: var(--color-slate-950);

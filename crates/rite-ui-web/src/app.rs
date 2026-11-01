@@ -378,7 +378,7 @@ pub fn App() -> impl IntoView {
     };
 
     view! {
-        <div class="flex h-screen flex-col bg-slate-100 text-slate-900 dark:bg-slate-900 dark:text-slate-100">
+        <div class="flex h-screen flex-col bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">
             <crate::update_bar::UpdateBar />
             <OfflineBar />
             <header class="flex items-center gap-4 border-b border-slate-200 bg-white px-4 py-2 dark:border-slate-700 dark:bg-slate-800">
@@ -1045,7 +1045,7 @@ fn SearchBox() -> impl IntoView {
 }
 
 /// The repository filter, at the far left: all repositories the project
-/// spans, or one. Same indigo pill as Sort (and, like it, painted itself:
+/// spans, or one. Same accent-coloured pill as Sort (and, like it, painted itself:
 /// WebKit's native select box would hide white text).
 #[component]
 fn RepoFilter() -> impl IntoView {
@@ -1180,7 +1180,7 @@ fn FilterBar() -> impl IntoView {
             <Marked active=Signal::derive(move || ctx.sort.get() != ctx.default_sort())>
             // WebKit draws a native (white) box for a <select> unless its
             // appearance is turned off, so the select is unstyled and
-            // painted indigo itself, with its own arrow.
+            // painted in the accent itself, with its own arrow.
             <label
                 class="group relative flex cursor-pointer items-center gap-1 whitespace-nowrap rounded bg-accent-600 py-1.5 pr-2 pl-3 text-sm font-medium text-white hover:bg-accent-500 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent-500"
                 title="Order of the tickets in every column"
@@ -1194,7 +1194,7 @@ fn FilterBar() -> impl IntoView {
                         ctx.sort.set(SortOrder::from_key(&event_target_value(&ev)));
                     }
                 >
-                    // The open list is indigo too, with white text.
+                    // The open list is in the accent too, with white text.
                     {SortOrder::ALL
                         .map(|o| {
                             view! {

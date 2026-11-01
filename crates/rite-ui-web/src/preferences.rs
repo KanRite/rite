@@ -45,6 +45,7 @@ fn AppearanceSection() -> impl IntoView {
     };
     // Written out in full so Tailwind generates them.
     let swatch = |accent: Accent| match accent {
+        Accent::Sky => "bg-sky-700",
         Accent::Indigo => "bg-indigo-600",
         Accent::Teal => "bg-teal-600",
         Accent::Slate => "bg-slate-600",
