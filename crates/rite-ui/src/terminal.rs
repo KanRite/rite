@@ -28,6 +28,31 @@ const FRAME: Duration = Duration::from_millis(16);
 /// Lines kept above the screen.
 const SCROLLBACK: usize = 5000;
 
+/// `PSModulePath` for Windows PowerShell 5.1 with PowerShell 7's module
+/// folders taken out (ticket 346). A shell started from riteui inherits the
+/// variable, and where PowerShell 7 is installed it lists 7's folders first, so
+/// 5.1 finds 7's PSReadLine (and other modules) before its own and can't load
+/// them: "Cannot load PSReadline module". Out go the entries with a folder
+/// called `PowerShell` (`Documents\PowerShell\Modules`, `Program Files\PowerShell\Modules`)
+/// or `Microsoft.PowerShell_…` (the Store app's); the rest
+/// stay in order, `WindowsPowerShell` ones and any a user added. `None` when
+/// there is nothing to change, so the variable is left alone.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn without_powershell_7(path: &str) -> Option<String> {
+    let is_7 = |entry: &str| {
+        entry.split(['\\', '/']).any(|part| {
+            let part = part.to_ascii_lowercase();
+            part == "powershell" || part.starts_with("microsoft.powershell_")
+        })
+    };
+    let kept: Vec<&str> = path
+        .split(';')
+        .filter(|entry| !entry.trim().is_empty() && !is_7(entry))
+        .collect();
+    let all = path.split(';').filter(|e| !e.trim().is_empty()).count();
+    (kept.len() != all && !kept.is_empty()).then(|| kept.join(";"))
+}
+
 /// Where frames go.
 pub trait Sink: Send + Sync + 'static {
     fn frame(&self, frame: TermFrame);
@@ -129,6 +154,13 @@ impl Session {
             lines: lines as usize,
         };
         let term = Arc::new(FairMutex::new(Term::new(config, &size, listener.clone())));
+        // Windows PowerShell must not see PowerShell 7's modules (ticket 346).
+        #[cfg(windows)]
+        let powershell_modules = program
+            .eq_ignore_ascii_case("powershell.exe")
+            .then(|| std::env::var("PSModulePath").ok())
+            .flatten()
+            .and_then(|path| without_powershell_7(&path));
         let options = tty::Options {
             shell: Some(tty::Shell::new(program, args)),
             working_directory: cwd,
@@ -143,6 +175,14 @@ impl Session {
             ]
             .into_iter()
             .collect(),
+        };
+        #[cfg(windows)]
+        let options = {
+            let mut options = options;
+            if let Some(path) = powershell_modules {
+                options.env.insert("PSModulePath".to_string(), path);
+            }
+            options
         };
         let pty = tty::new(&options, window_size(cols, lines), u64::from(id))?;
         let event_loop = EventLoop::new(Arc::clone(&term), listener.clone(), pty, true, false)?;
@@ -767,5 +807,95 @@ mod tests {
         assert_eq!(palette(231), (255, 255, 255));
         assert_eq!(palette(232), (8, 8, 8));
         assert_eq!(palette(255), (238, 238, 238));
+    }
+}
+
+#[cfg(test)]
+mod module_path_tests {
+    use super::*;
+
+    #[test]
+    fn powershell_7s_folders_go_and_the_rest_stay_in_order() {
+        let path = [
+            r"C:\Users\me\Documents\PowerShell\Modules",
+            r"C:\Program Files\PowerShell\Modules",
+            r"c:\program files\windowsapps\microsoft.powershell_7.5.0.0_x64__8wekyb3d8bbwe\Modules",
+            r"C:\Program Files\WindowsPowerShell\Modules",
+            r"D:\mine\PowerShellTools",
+            r"C:\WINDOWS\system32\WindowsPowerShell\v1.0\Modules",
+        ]
+        .join(";");
+        assert_eq!(
+            without_powershell_7(&path).unwrap(),
+            [
+                r"C:\Program Files\WindowsPowerShell\Modules",
+                r"D:\mine\PowerShellTools",
+                r"C:\WINDOWS\system32\WindowsPowerShell\v1.0\Modules",
+            ]
+            .join(";")
+        );
+    }
+
+    #[test]
+    fn nothing_to_change_means_the_variable_is_left_alone() {
+        let own = r"C:\Program Files\WindowsPowerShell\Modules;C:\WINDOWS\system32\WindowsPowerShell\v1.0\Modules";
+        assert_eq!(without_powershell_7(own), None);
+        assert_eq!(without_powershell_7(""), None);
+        // Only 7's entries: an empty path would be worse than the inherited one.
+        assert_eq!(
+            without_powershell_7(r"C:\Program Files\PowerShell\Modules"),
+            None
+        );
+    }
+}
+
+/// Needs Windows PowerShell and, to prove anything, PowerShell 7 installed with
+/// its module folders in the inherited `PSModulePath` (ticket 346); run it
+/// with `cargo test -p rite-ui -- --ignored powershell_panel`.
+#[cfg(all(test, windows))]
+mod windows_tests {
+    use super::*;
+    use std::sync::mpsc;
+
+    struct Channel(Mutex<mpsc::Sender<TermFrame>>);
+
+    impl Sink for Channel {
+        fn frame(&self, frame: TermFrame) {
+            let _ = self.0.lock().unwrap().send(frame);
+        }
+        fn exited(&self, _: u32) {}
+    }
+
+    #[test]
+    #[ignore = "needs PowerShell 7 beside Windows PowerShell"]
+    fn powershell_panel_starts_with_psreadline() {
+        let (tx, rx) = mpsc::channel();
+        let session = Session::open(
+            1,
+            "powershell.exe".into(),
+            vec!["-NoLogo".into()],
+            None,
+            120,
+            20,
+            Arc::new(Channel(Mutex::new(tx))),
+        )
+        .unwrap();
+        let mut rows: Vec<String> = Vec::new();
+        let deadline = std::time::Instant::now() + Duration::from_secs(12);
+        while std::time::Instant::now() < deadline {
+            if let Ok(frame) = rx.recv_timeout(Duration::from_millis(200)) {
+                for row in &frame.rows {
+                    let y = row.y as usize;
+                    if rows.len() <= y {
+                        rows.resize(y + 1, String::new());
+                    }
+                    rows[y] = row.runs.iter().map(|r| r.text.as_str()).collect();
+                }
+            }
+        }
+        drop(session);
+        let text = rows.join("\n");
+        assert!(text.contains("PS "), "no prompt came up:\n{text}");
+        assert!(!text.contains("Cannot load PSReadline"), "{text}");
     }
 }
