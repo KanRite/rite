@@ -742,6 +742,16 @@ pub struct UpdateInfo {
     pub current: String,
 }
 
+/// One release in What's new (ticket 336): its version, its notes as HTML
+/// (made safe by riteui, as a document is; empty when it has none) and its
+/// page on GitHub.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReleaseNotes {
+    pub version: String,
+    pub html: String,
+    pub url: String,
+}
+
 /// A folder path in one comparable form (ticket 329): `\` as `/`, a
 /// Windows `\\?\` prefix and a trailing slash dropped, and the case folded
 /// when it starts with a drive letter. On Windows git reports `G:/a/b`

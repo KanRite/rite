@@ -1174,6 +1174,12 @@ async fn check_for_update() -> Result<rite_ui_model::ManualCheck> {
     blocking(|| Ok(updates::check_now())).await
 }
 
+/// What's new (ticket 336): the notes of each release newer than this one.
+#[tauri::command]
+async fn whats_new() -> Result<Vec<rite_ui_model::ReleaseNotes>> {
+    blocking(updates::whats_new).await
+}
+
 /// When GitHub last answered a check for updates (unix seconds).
 #[tauri::command]
 async fn update_checked() -> Result<Option<i64>> {
@@ -3197,6 +3203,7 @@ pub fn run() {
             update_status,
             snooze_update,
             check_for_update,
+            whats_new,
             update_checked,
             apply_update,
             binary_changed,

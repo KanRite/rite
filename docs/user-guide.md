@@ -507,8 +507,9 @@ disagree.
   ![The board in the default white and sky blue](../pages/screenshots/board.png)
 
 - **The update bar.** When a newer KanRite is out, an orange bar across
-  the top of every screen says so, with **What's new** (the release notes),
-  **Update** and **Later**. Update installs it and restarts riteui (close a
+  the top of every screen says so, with **What's new** (the release notes
+  of every newer release, shown in riteui, with Open on GitHub), **Update**
+  and **Later**. Update installs it and restarts riteui (close a
   ticket you're editing first). Later hides that version for a day, even across
   restarts; a newer release still shows at once. riteui looks when it starts
   and every half hour while open, but asks GitHub at most every three

@@ -56,6 +56,9 @@ pub enum Overlay {
     CloneRepo(String),
     /// A new repository for the project, from a ticket (ticket 228).
     NewRepo(NewRepoFor),
+    /// The release notes of each newer KanRite (ticket 336), from the update
+    /// bar's What's new; the newest release's page on GitHub to fall back on.
+    WhatsNew(String),
     /// A ticket dropped on a column at its WIP limit: move it anyway?
     OverLimit {
         file: String,
@@ -563,6 +566,9 @@ pub fn App() -> impl IntoView {
                 }
                 Some(Overlay::Tree { place, file, children }) => {
                     view! { <crate::tree::TreePanel place file children /> }.into_any()
+                }
+                Some(Overlay::WhatsNew(url)) => {
+                    view! { <crate::update_bar::WhatsNewDialog url /> }.into_any()
                 }
                 Some(Overlay::OverLimit { file, from, to, reason }) => {
                     view! { <OverLimitDialog file from to reason /> }.into_any()

@@ -1,5 +1,7 @@
 //! The update bar (ticket 192): across the top of every screen when a newer
-//! KanRite is out, in orange, a colour no accent uses. **Update** installs
+//! KanRite is out, in orange, a colour no accent uses. **What's new** shows
+//! the notes of every newer release in riteui itself (ticket 336: handed to
+//! the browser, they opened behind the window). **Update** installs
 //! it and restarts riteui (ticket 191), after asking for an open ticket to be
 //! closed so nothing typed is lost; an install riteui doesn't replace says
 //! why and how instead. **Later** hides that version for a day, across
@@ -18,7 +20,7 @@ use leptos::task::spawn_local;
 use rite_ui_model::{ManualCheck, UpdateResult};
 
 use crate::api;
-use crate::app::{Ctx, Overlay};
+use crate::app::{Ctx, Modal, Overlay};
 
 /// A check for updates asked for by hand (ticket 304), shared by the top
 /// bar's version and Preferences: what it found goes in `note`, and a newer
@@ -200,9 +202,7 @@ pub fn UpdateBar() -> impl IntoView {
     };
     let notes = move |_| {
         if let Some(url) = offer.with_untracked(|o| o.as_ref().map(|o| o.notes_url.clone())) {
-            spawn_local(async move {
-                let _ = api::open_external(&url).await;
-            });
+            ctx.overlay.set(Some(Overlay::WhatsNew(url)));
         }
     };
     // The team requires a newer KanRite (ticket 193).
@@ -375,5 +375,82 @@ fn UnmanagedHelp(phase: RwSignal<Phase>) -> impl IntoView {
                 />
             </div>
         </Show>
+    }
+}
+
+/// What's new (ticket 336): each newer release's notes, newest first, over
+/// everything else, with Close. `url` is the newest release's page, for
+/// Open on GitHub and for when GitHub can't be asked.
+#[component]
+pub fn WhatsNewDialog(url: String) -> impl IntoView {
+    use wasm_bindgen::JsCast;
+    let ctx = Ctx::get();
+    let notes = RwSignal::new(None::<Result<Vec<rite_ui_model::ReleaseNotes>, String>>);
+    spawn_local(async move {
+        notes.set(Some(api::whats_new().await));
+    });
+    let open = move |url: String| {
+        spawn_local(async move {
+            if let Err(e) = api::open_external(&url).await {
+                ctx.error.set(Some(e));
+            }
+        });
+    };
+    // Links mustn't navigate the window: web links open outside.
+    let on_click = move |ev: leptos::ev::MouseEvent| {
+        let Some(anchor) = ev
+            .target()
+            .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
+            .and_then(|e| e.closest("a").ok().flatten())
+        else {
+            return;
+        };
+        let href = anchor.get_attribute("href").unwrap_or_default();
+        ev.prevent_default();
+        if href.starts_with("http://")
+            || href.starts_with("https://")
+            || href.starts_with("mailto:")
+        {
+            open(href);
+        }
+    };
+    let github = StoredValue::new(url);
+    let button = "rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-700";
+    view! {
+        <Modal title="What's new in KanRite".to_string()>
+            <div class="min-h-0 flex-1 overflow-y-auto pr-1" on:click=on_click>
+                {move || match notes.get() {
+                    None => view! { <p class="text-sm text-slate-500">"Asking GitHub for the release notes…"</p> }.into_any(),
+                    Some(Err(why)) => view! {
+                        <p class="text-sm">{format!("The release notes couldn't be read: {why}. Open on GitHub shows them in your browser.")}</p>
+                    }.into_any(),
+                    Some(Ok(list)) if list.is_empty() => view! {
+                        <p class="text-sm">"This is the newest KanRite: there's nothing newer to read about."</p>
+                    }.into_any(),
+                    Some(Ok(list)) => list.into_iter().map(|release| view! {
+                        <section class="flex flex-col gap-2 border-b border-slate-200 pb-3 last:border-b-0 dark:border-slate-700">
+                            <h3 class="text-lg font-semibold">{format!("KanRite {}", release.version)}</h3>
+                            {if release.html.is_empty() {
+                                view! { <p class="text-sm italic text-slate-500">"No notes were written for this release."</p> }.into_any()
+                            } else {
+                                view! { <div class="doc text-sm" inner_html=release.html></div> }.into_any()
+                            }}
+                        </section>
+                    }).collect_view().into_any(),
+                }}
+            </div>
+            <div class="flex justify-end gap-2">
+                <button type="button" class=button on:click=move |_| open(github.get_value())>
+                    "Open on GitHub"
+                </button>
+                <button
+                    type="button"
+                    class="rounded bg-accent-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-500"
+                    on:click=move |_| ctx.close_overlay()
+                >
+                    "Close"
+                </button>
+            </div>
+        </Modal>
     }
 }

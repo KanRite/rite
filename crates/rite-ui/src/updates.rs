@@ -12,7 +12,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use rite_lib::settings::Config;
 use rite_lib::update::{self, Release, ReleaseSource, Version};
 use rite_lib::update_apply::{self, Applied, Fetch, Install};
-use rite_ui_model::{ManualCheck, UpdateInfo, UpdateResult};
+use rite_ui_model::{ManualCheck, ReleaseNotes, UpdateInfo, UpdateResult};
 
 /// KanRite's releases, newest first; 30 is far more than a build is behind.
 const RELEASES: &str = "https://api.github.com/repos/kanrite/rite/releases?per_page=30";
@@ -95,6 +95,25 @@ pub fn check_now() -> ManualCheck {
             why: format!("couldn't reach GitHub: {why}"),
         },
     }
+}
+
+/// What's new (ticket 336): the notes of every release newer than this
+/// build, newest first, asked of GitHub now. Unlike the bar's check this
+/// says why it failed, since someone asked to read them.
+pub fn whats_new() -> Result<Vec<ReleaseNotes>, String> {
+    let current = Version::parse(env!("CARGO_PKG_VERSION"))
+        .ok_or_else(|| "this build has no release version".to_string())?;
+    let releases = GitHub
+        .releases()
+        .map_err(|e| format!("couldn't reach GitHub: {e:#}"))?;
+    Ok(update::newer_than(current, &releases)
+        .into_iter()
+        .map(|release| ReleaseNotes {
+            version: release.version.to_string(),
+            html: crate::documents::render_release_notes(&release.notes),
+            url: release.notes_url.clone(),
+        })
+        .collect())
 }
 
 /// When GitHub last answered a check (unix seconds), if it's known.
