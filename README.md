@@ -228,6 +228,8 @@ starts and every few hours while it's open, asking GitHub at most once a
 day (drafts and pre-releases are ignored). When there is one, an orange bar
 across the top says so, with **What's new**, **Update** and **Later**:
 
+- **What's new** shows the release notes of every release newer than
+  yours, in the board itself; **Open on GitHub** shows them in your browser.
 - **Update** installs it and restarts the board. Each release's download
   is checked against the checksum GitHub publishes, and only the two
   programs are replaced, never your projects or settings. On the command

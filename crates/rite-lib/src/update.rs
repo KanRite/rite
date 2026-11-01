@@ -68,6 +68,9 @@ impl fmt::Display for Version {
 pub struct Release {
     pub version: Version,
     pub notes_url: String,
+    /// What the release says, as GitHub has it (its markdown body; ticket
+    /// 336); empty in the remembered list and where it wrote none.
+    pub notes: String,
     /// Its downloadable files (ticket 191); empty where only the version
     /// matters, such as the remembered list.
     pub assets: Vec<Asset>,
@@ -110,6 +113,9 @@ pub fn parse_releases(json: &str) -> Result<Vec<Release>> {
         draft: bool,
         #[serde(default)]
         prerelease: bool,
+        /// GitHub sends `null` for a release with no notes.
+        #[serde(default)]
+        body: Option<String>,
         #[serde(default)]
         assets: Vec<File>,
     }
@@ -130,6 +136,7 @@ pub fn parse_releases(json: &str) -> Result<Vec<Release>> {
             Some(Release {
                 version: Version::parse(&item.tag_name)?,
                 notes_url: item.html_url,
+                notes: item.body.unwrap_or_default(),
                 assets: item
                     .assets
                     .into_iter()
@@ -158,6 +165,13 @@ pub fn newest_above(current: Version, releases: &[Release]) -> Option<UpdateAvai
         notes_url: latest.notes_url.clone(),
         behind: newer.len(),
     })
+}
+
+/// What's new (ticket 336): every release above `current`, newest first.
+pub fn newer_than(current: Version, releases: &[Release]) -> Vec<&Release> {
+    let mut newer: Vec<&Release> = releases.iter().filter(|r| r.version > current).collect();
+    newer.sort_by_key(|r| std::cmp::Reverse(r.version));
+    newer
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -211,6 +225,7 @@ impl State {
                 Some(Release {
                     version: Version::parse(tag)?,
                     notes_url: url.clone(),
+                    notes: String::new(),
                     assets: Vec::new(),
                 })
             })
@@ -381,6 +396,7 @@ mod tests {
         Release {
             version: Version::parse(version).unwrap(),
             notes_url: format!("https://example.test/{version}"),
+            notes: String::new(),
             assets: Vec::new(),
         }
     }
@@ -417,8 +433,37 @@ mod tests {
         Release {
             version: v(version),
             notes_url: url.into(),
+            notes: String::new(),
             assets: Vec::new(),
         }
+    }
+
+    #[test]
+    fn a_release_brings_its_notes_and_none_is_empty() {
+        let json = r###"[
+            {"tag_name":"v4.2.0","html_url":"https://x/4.2.0","body":"## What's Changed\n* a fix"},
+            {"tag_name":"v4.1.0","html_url":"https://x/4.1.0","body":null},
+            {"tag_name":"v4.0.0","html_url":"https://x/4.0.0"}
+        ]"###;
+        let releases = parse_releases(json).unwrap();
+        let notes: Vec<&str> = releases.iter().map(|r| r.notes.as_str()).collect();
+        assert_eq!(notes, ["## What's Changed\n* a fix", "", ""]);
+    }
+
+    #[test]
+    fn whats_new_is_each_newer_release_newest_first() {
+        let releases = vec![
+            release("4.1.0"),
+            release("4.3.0"),
+            release("4.0.0"),
+            release("4.2.0"),
+        ];
+        let shown: Vec<String> = newer_than(v("4.1.0"), &releases)
+            .iter()
+            .map(|r| r.version.to_string())
+            .collect();
+        assert_eq!(shown, ["4.3.0", "4.2.0"]);
+        assert!(newer_than(v("4.3.0"), &releases).is_empty());
     }
 
     #[test]

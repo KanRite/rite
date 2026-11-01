@@ -11,7 +11,7 @@
 use std::path::Path;
 
 use base64::Engine;
-use pulldown_cmark::{CowStr, Event, Options, Parser, Tag, TagEnd, html};
+use pulldown_cmark::{CowStr, Event, HeadingLevel, Options, Parser, Tag, TagEnd, html};
 use rite_lib::documents;
 
 /// `text`, the document at `path` in the repository `root`, as HTML.
@@ -61,6 +61,99 @@ pub fn render(root: &Path, path: &str, text: &str) -> String {
     let mut out = String::new();
     html::push_html(&mut out, events);
     out
+}
+
+/// A release's notes from GitHub (ticket 336), as HTML for What's new. The
+/// same rules as a document, with nothing in a repository to point at: raw
+/// HTML is text, only web and mail links keep their address, images are
+/// left out (their text stays), and a bare `https://` address, which
+/// GitHub's generated notes are full of, becomes a link. Every heading is an
+/// `h4`, so the notes' own "What's Changed" sits under the release's name.
+pub fn render_release_notes(text: &str) -> String {
+    let options =
+        Options::ENABLE_TABLES | Options::ENABLE_STRIKETHROUGH | Options::ENABLE_TASKLISTS;
+    let mut in_link = false;
+    let events = Parser::new_ext(text, options).flat_map(|event| match event {
+        Event::Html(raw) | Event::InlineHtml(raw) => vec![Event::Text(raw)],
+        Event::Start(Tag::Image { .. }) | Event::End(TagEnd::Image) => Vec::new(),
+        Event::Start(Tag::Heading {
+            id, classes, attrs, ..
+        }) => vec![Event::Start(Tag::Heading {
+            level: HeadingLevel::H4,
+            id,
+            classes,
+            attrs,
+        })],
+        Event::End(TagEnd::Heading(_)) => vec![Event::End(TagEnd::Heading(HeadingLevel::H4))],
+        Event::Start(Tag::Link {
+            link_type,
+            dest_url,
+            title,
+            id,
+        }) => {
+            in_link = true;
+            vec![Event::Start(Tag::Link {
+                link_type,
+                dest_url: web_link(&dest_url).into(),
+                title,
+                id,
+            })]
+        }
+        Event::End(TagEnd::Link) => {
+            in_link = false;
+            vec![Event::End(TagEnd::Link)]
+        }
+        Event::Text(text) if !in_link => autolink(&text),
+        other => vec![other],
+    });
+    let mut out = String::new();
+    html::push_html(&mut out, events);
+    out
+}
+
+/// A web or mail address kept; anything else goes nowhere.
+fn web_link(dest: &str) -> String {
+    let lower = dest.to_ascii_lowercase();
+    if lower.starts_with("https://") || lower.starts_with("http://") || lower.starts_with("mailto:")
+    {
+        dest.to_string()
+    } else {
+        "#".to_string()
+    }
+}
+
+/// `text` with each bare `https://` address made a link to itself; a full
+/// stop, comma or bracket after one is left outside it.
+fn autolink(text: &str) -> Vec<Event<'static>> {
+    let mut events = Vec::new();
+    let mut rest = text;
+    while let Some(at) = rest.find("https://") {
+        let tail = &rest[at..];
+        let len = tail.find(char::is_whitespace).unwrap_or(tail.len());
+        let url = tail[..len].trim_end_matches(['.', ',', ';', ':', ')', ']', '!', '?']);
+        if url.len() <= "https://".len() {
+            events.push(Event::Text(rest[..at + len].to_string().into()));
+            rest = &rest[at + len..];
+            continue;
+        }
+        if at > 0 {
+            events.push(Event::Text(rest[..at].to_string().into()));
+        }
+        let url: CowStr<'static> = url.to_string().into();
+        events.push(Event::Start(Tag::Link {
+            link_type: pulldown_cmark::LinkType::Autolink,
+            dest_url: url.clone(),
+            title: "".into(),
+            id: "".into(),
+        }));
+        events.push(Event::Text(url.clone()));
+        events.push(Event::End(TagEnd::Link));
+        rest = &rest[at + url.len()..];
+    }
+    if !rest.is_empty() {
+        events.push(Event::Text(rest.to_string().into()));
+    }
+    events
 }
 
 /// Where a link in the document `from` should go.
@@ -135,6 +228,31 @@ fn decode(dest: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn release_notes_link_bare_addresses_and_run_nothing() {
+        let html = render_release_notes(
+            "## What's Changed\n* fix: a thing by @me in https://github.com/KanRite/rite/pull/273.\n\n\
+             <script>alert(1)</script>\n\n[x](javascript:alert(1)) ![pic](https://x/p.png) [ok](https://x/y)",
+        );
+        assert!(html.contains("<h4>What's Changed</h4>"), "{html}");
+        assert!(
+            html.contains(r#"in <a href="https://github.com/KanRite/rite/pull/273">https://github.com/KanRite/rite/pull/273</a>.</li>"#),
+            "{html}"
+        );
+        assert!(html.contains("&lt;script&gt;"), "{html}");
+        assert!(!html.contains("<script"), "{html}");
+        assert!(html.contains(r##"<a href="#">x</a>"##), "{html}");
+        assert!(!html.contains("<img"), "{html}");
+        assert!(html.contains(r#"<a href="https://x/y">ok</a>"#), "{html}");
+    }
+
+    #[test]
+    fn an_address_inside_a_link_is_not_linked_again() {
+        let html = render_release_notes("[https://x/a](https://x/a) and https://");
+        assert_eq!(html.matches("<a ").count(), 1, "{html}");
+        assert!(html.contains("and https://</p>"), "{html}");
+    }
 
     #[test]
     fn raw_html_is_text() {

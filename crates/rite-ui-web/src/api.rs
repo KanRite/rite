@@ -416,6 +416,12 @@ pub async fn check_for_update() -> Result<rite_ui_model::ManualCheck, String> {
     call("check_for_update", &NoArgs {}).await
 }
 
+/// What's new: the notes of each release newer than this one, newest first
+/// (ticket 336).
+pub async fn whats_new() -> Result<Vec<rite_ui_model::ReleaseNotes>, String> {
+    call("whats_new", &NoArgs {}).await
+}
+
 /// When GitHub last answered a check for updates (unix seconds).
 pub async fn update_checked() -> Result<Option<i64>, String> {
     call("update_checked", &NoArgs {}).await

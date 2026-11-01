@@ -584,6 +584,7 @@ mod tests {
             releases.push(Release {
                 version: Version::parse(version).unwrap(),
                 notes_url: String::new(),
+                notes: String::new(),
                 assets: vec![Asset {
                     name: asset_name(target),
                     url,
