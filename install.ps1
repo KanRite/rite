@@ -1,7 +1,7 @@
 # KanRite installer for Windows (ticket 282): install.sh's counterpart.
 #
 #   irm https://raw.githubusercontent.com/kanrite/rite/v5/install.ps1 | iex
-#   & ([scriptblock]::Create((irm https://raw.githubusercontent.com/kanrite/rite/v5/install.ps1))) -Version v5.0.0
+#   & ([scriptblock]::Create((irm https://raw.githubusercontent.com/kanrite/rite/v5/install.ps1))) -Version v5.1.0
 #   ... -Uninstall [-All] [-Yes]          (or Settings > Apps > KanRite > Uninstall)
 #
 # Downloads the release zip for this machine (x64 or Arm64) and installs
