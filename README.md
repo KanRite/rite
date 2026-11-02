@@ -10,7 +10,7 @@
 **An open source, fully featured, multi-project agile management system for
 individuals and teams.**
 
-**[Website](https://kanrite.github.io/rite/)** ·
+**[Website](https://kanrite.com/)** ·
 [Install](#install) ·
 [User guide](docs/user-guide.md) ·
 [Releases](https://github.com/kanrite/rite/releases) ·
