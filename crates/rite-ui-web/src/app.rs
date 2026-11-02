@@ -853,6 +853,11 @@ pub fn Modal(
         }
     });
     on_cleanup(move || escape.remove());
+    // The dialog is never taller than the window and scrolls when its
+    // content is (ticket 356): zoomed in, or on a small screen, the buttons
+    // at its foot were cut off. A dialog with its own scrolling part (the
+    // editor, What's new) gives that `min-h-0`, so it shrinks first and the
+    // buttons stay in view.
     view! {
         <div class="fixed inset-0 z-10 flex items-center justify-center bg-black/40 p-6">
             <section
@@ -860,7 +865,7 @@ pub fn Modal(
                 aria-modal="true"
                 aria-label=label
                 class=format!(
-                    "flex max-h-full w-full {width} flex-col gap-3 rounded-lg bg-white p-4 shadow-xl dark:bg-slate-800",
+                    "flex max-h-full w-full {width} flex-col gap-3 overflow-y-auto rounded-lg bg-white p-4 shadow-xl dark:bg-slate-800",
                 )
             >
                 <h2 class="text-base font-semibold">{title}</h2>
