@@ -1,9 +1,26 @@
 name: CI
 
+# What runs when (ticket 328). The board's page is built once (board-page.yml)
+# and every platform's job starts from it, in parallel.
+#
+# - Linux x86_64 (`rust`) and `shell` run on every pull request and push to
+#   main. They're the required checks, and the Dependabot gate reads them.
+# - The full suite adds Linux Arm, Windows and macOS. It runs for a pull
+#   request from a release/ or hotfix/ branch, by hand (Actions > CI > Run
+#   workflow, or `gh workflow run ci.yml --ref <branch>`), and on Wednesday,
+#   Thursday and Friday at 06:00 London time: release, post-release testing and
+#   hotfix days (kanrite-documents' docs/WAYS_OF_WORKING.md). feature/, bugfix/
+#   and chore/ branches don't wait for the slower platforms.
+#
+# The branch type decides, not a label, so the rule carries over to any forge.
 on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    - cron: '0 6 * * 3-5'
+      timezone: "Europe/London"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -12,13 +29,45 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # Whether this run is the full suite (above), decided here once, so the rule
+  # is in one place.
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      full: ${{ steps.which.outputs.full }}
+    steps:
+      - id: which
+        env:
+          EVENT: ${{ github.event_name }}
+          HEAD: ${{ github.head_ref }}
+        run: |
+          case "${EVENT}:${HEAD}" in
+            schedule:*|workflow_dispatch:*|pull_request:release/*|pull_request:hotfix/*) full=true ;;
+            *) full=false ;;
+          esac
+          echo "full=${full}" >> "$GITHUB_OUTPUT"
+          echo "Full suite: ${full} (${EVENT}${HEAD:+ from ${HEAD}})"
+
+  page:
+    uses: ./.github/workflows/board-page.yml
+
   # Each job has a limit well above its usual time (rust 5-20 minutes,
   # shell under one) plus a slow apt, so a hang fails in minutes, not
   # GitHub's six hours.
   rust:
+    needs: page
+    # A skipped required check counts as passed, so rust runs even when the
+    # page failed, and fails at its first step instead of being skipped.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
+      - name: The board's page was built
+        env:
+          PAGE: ${{ needs.page.result }}
+        run: |
+          [ "${PAGE}" = success ] || { echo "::error::The board's page didn't build (${PAGE}); see the page job"; exit 1; }
       - uses: actions/checkout@v7
       # The workspace builds three times over (clippy, unit tests, the CLI
       # tests), and candle (ticket 187) is large: room first.
@@ -37,13 +86,11 @@ jobs:
           rustup toolchain install stable --profile minimal --component rustfmt,clippy --target wasm32-unknown-unknown
           rustup default stable
       - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@v2
+      # riteui embeds the board's page at compile time, so it comes first.
+      - uses: actions/download-artifact@v8
         with:
-          tool: trunk
-      # riteui embeds the board's pages at compile time, so they come first.
-      - name: Build the desktop board's front end
-        working-directory: crates/rite-ui-web
-        run: trunk build --release
+          name: board-page
+          path: crates/rite-ui-web/dist
       - name: Format
         run: cargo fmt --all --check
       - name: Clippy
@@ -88,30 +135,29 @@ jobs:
       - name: CLI tests
         run: bash tests/test.sh
 
-  # Windows (ticket 276): building and testing each crate on its own, every
-  # step running even when one before failed, to find what breaks. Not a
-  # required check, and allowed to fail, until it passes; the failures are
-  # listed on ticket 276 with the ticket that fixes each.
+  # Windows (ticket 276), in the full suite: building and testing each crate
+  # on its own, every step running even when one before failed, to find what
+  # breaks. Not a required check, so it doesn't hold up a pull request, but a
+  # failure fails the run, so a scheduled one reaches the board.
   windows:
+    needs: [plan, page]
+    if: needs.plan.outputs.full == 'true'
     runs-on: windows-latest
-    continue-on-error: true
     timeout-minutes: 90
     defaults:
       run:
         shell: bash
     steps:
       - uses: actions/checkout@v7
-      - name: Install Rust (stable + wasm32)
+      - name: Install Rust (stable)
         run: |
-          rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown
+          rustup toolchain install stable --profile minimal
           rustup default stable
       - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@v2
+      - uses: actions/download-artifact@v8
         with:
-          tool: trunk
-      - name: Build the desktop board's front end
-        working-directory: crates/rite-ui-web
-        run: trunk build --release
+          name: board-page
+          path: crates/rite-ui-web/dist
       - name: Library tests (rite-lib)
         if: ${{ !cancelled() }}
         run: cargo test --locked -p rite-lib --no-fail-fast
@@ -137,7 +183,16 @@ jobs:
         shell: pwsh
         run: scripts/check-windows-dlls.ps1 target/debug/rite.exe target/debug/riteui.exe
       # The build tasks (ticket 318), so `cargo xtask` keeps working on
-      # Windows; both binaries are built already, so this is quick.
+      # Windows; both binaries are built already, so this is quick. It builds
+      # the page itself, as from a clone, so it needs the wasm target and
+      # trunk (x64 here: no emulation, unlike the Arm release build).
+      - name: The wasm target and trunk, for cargo xtask
+        if: ${{ !cancelled() }}
+        run: rustup target add wasm32-unknown-unknown
+      - uses: taiki-e/install-action@v2
+        if: ${{ !cancelled() }}
+        with:
+          tool: trunk
       - name: cargo xtask build
         if: ${{ !cancelled() }}
         run: cargo xtask build
@@ -149,6 +204,79 @@ jobs:
         if: ${{ !cancelled() }}
         shell: powershell
         run: scripts/test-install.ps1
+
+  # macOS (ticket 345), in the full suite: release.yml ships it, and a default
+  # macOS volume ignores case like NTFS, so this is where the third kind of
+  # disk is tested (ticket 338).
+  macos:
+    needs: [plan, page]
+    if: needs.plan.outputs.full == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      # The desktop board is a Tauri app: WKWebView ships with macOS, so no
+      # system libraries to install.
+      - name: Install Rust (stable)
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/download-artifact@v8
+        with:
+          name: board-page
+          path: crates/rite-ui-web/dist
+      # Every crate's tests in one run, all of them even when one fails.
+      - name: Unit tests
+        run: cargo test --locked --workspace --no-fail-fast
+      # tests/test.sh uses GNU sed -i and date -d, which macOS's BSD tools
+      # lack. It tests the rite binary, which is what ships, not the script,
+      # so GNU's tools go first on the PATH rather than the script being
+      # made portable.
+      - name: GNU tools for tests/test.sh
+        if: ${{ !cancelled() }}
+        run: |
+          brew install gnu-sed coreutils
+          echo "$(brew --prefix)/opt/gnu-sed/libexec/gnubin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix)/opt/coreutils/libexec/gnubin" >> "$GITHUB_PATH"
+      - name: Versions
+        if: ${{ !cancelled() }}
+        run: |
+          bash --version | head -1
+          git --version
+          sed --version | head -1
+          diskutil info / | grep -iE "file system personality|type \(bundle\)"
+      - name: CLI tests
+        if: ${{ !cancelled() }}
+        run: bash tests/test.sh
+
+  # Linux on Arm, in the full suite: release.yml ships aarch64-unknown-linux-gnu
+  # and nothing else tests it. The unit tests and tests/test.sh, as rust runs
+  # them; no previous-release check, whose download is x86_64.
+  linux-arm:
+    needs: [plan, page]
+    if: needs.plan.outputs.full == 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install the desktop board's system libraries
+        timeout-minutes: 30
+        run: scripts/apt-install.sh libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libsoup-3.0-dev libasound2-dev
+      - name: Install Rust (stable)
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/download-artifact@v8
+        with:
+          name: board-page
+          path: crates/rite-ui-web/dist
+      - name: Unit tests
+        run: cargo test --locked --workspace --no-fail-fast
+      - name: CLI tests
+        if: ${{ !cancelled() }}
+        run: bash tests/test.sh
 
   shell:
     runs-on: ubuntu-latest

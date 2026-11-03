@@ -8,16 +8,18 @@ name: Release
 # desktop board (riteui) is a Tauri app whose page is built to WebAssembly by
 # Trunk and embedded at compile time, and on Linux it needs WebKitGTK. A plain
 # `cargo build` can't make it, so those steps live here, beside the one app
-# that needs them.
+# that needs them. The page is built once, on Linux (board-page.yml, ticket
+# 328), and every platform's build embeds that same copy, so all six zips ship
+# the same page and the Arm Windows runner never runs Tailwind.
 #
-# A pull request that changes this file, or a run by hand (workflow_dispatch),
-# is a dry run: it builds every platform and keeps the zips as workflow
-# artifacts, and creates no release.
+# A pull request that changes this file or board-page.yml, or a run by hand
+# (workflow_dispatch), is a dry run: it builds every platform and keeps the
+# zips as workflow artifacts, and creates no release.
 on:
   push:
     tags: ["v[0-9]+.[0-9]+.[0-9]+"]
   pull_request:
-    paths: [".github/workflows/release.yml"]
+    paths: [".github/workflows/release.yml", ".github/workflows/board-page.yml"]
   workflow_dispatch:
 
 permissions:
@@ -27,7 +29,11 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  page:
+    uses: ./.github/workflows/board-page.yml
+
   build:
+    needs: page
     strategy:
       fail-fast: false
       matrix:
@@ -57,25 +63,22 @@ jobs:
 
       # bash everywhere: Windows' default shell, PowerShell, can't read the
       # `\` line continuation.
-      - name: Install Rust (stable, ${{ matrix.target }} + wasm32)
+      - name: Install Rust (stable, ${{ matrix.target }})
         shell: bash
         run: |
-          rustup toolchain install stable --profile minimal \
-            --target ${{ matrix.target }} --target wasm32-unknown-unknown
+          rustup toolchain install stable --profile minimal --target ${{ matrix.target }}
           rustup default stable
 
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
 
-      - uses: taiki-e/install-action@v2
+      # riteui embeds the board's page at compile time, so it comes first:
+      # the one copy board-page.yml built.
+      - uses: actions/download-artifact@v8
         with:
-          tool: trunk
-
-      # riteui embeds the board's page at compile time, so it comes first.
-      - name: Build the desktop board's front end
-        working-directory: crates/rite-ui-web
-        run: trunk build --release
+          name: board-page
+          path: crates/rite-ui-web/dist
 
       - name: Build rite and riteui
         run: cargo build --release --locked --target ${{ matrix.target }} -p rite-cli -p rite-ui
@@ -139,11 +142,17 @@ jobs:
     needs: build
     if: ${{ !cancelled() && github.ref_type == 'tag' }}
     runs-on: ubuntu-latest
+    # It only downloads the zips and uploads them, usually under a minute;
+    # like every job, it has a limit well short of GitHub's six hours (ticket
+    # 327).
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
 
+      # The zips only, not the board's page.
       - uses: actions/download-artifact@v8
         with:
+          pattern: amd-*
           path: dist
           merge-multiple: true
 

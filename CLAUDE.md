@@ -692,7 +692,8 @@ redundant. Their history is in git if it is ever wanted again.
   alias in `.cargo/config.toml`): building, CI's checks and a source
   install as one set of commands on Linux, macOS and Windows, in Rust with
   the standard library only, so there's no make or bash to need. The
-  commands it runs mirror ci.yml; change both together. `install` hands
+  commands it runs mirror ci.yml's `rust` job and board-page.yml's page
+  build; change them together. `install` hands
   over to `install.sh --from-source` off Windows, and install.sh builds
   through `cargo xtask build`, so the build commands live in one place. On
   Windows `install` copies the `.exe`s into Cargo's bin folder, moving a
@@ -700,19 +701,32 @@ redundant. Their history is in git if it is ever wanted again.
   `cargo xtask build` to keep it working there.
 - `tests/test.sh` — assert-based end-to-end suite; builds with cargo and spins
   up temp git repos. Unit tests live next to the code in `#[cfg(test)] mod tests`.
-- `.github/workflows/ci.yml` — fmt + clippy + cargo test + tests/test.sh, and
-  shellcheck for the shell files. A `windows` job (ticket 276) is the third; none is a check the
-  Dependabot gate reads beyond `rust` and `shell`. **macOS** (ticket 345) is its own
-  workflow, `macos.yml`, run by hand (`workflow_dispatch`) and every Tuesday at 11:00
-  London time (the day before release day; kanrite-documents'
-  `docs/WAYS_OF_WORKING.md`), not on
-  pull requests (about nine minutes): every crate's tests, then tests/test.sh with
-  GNU sed and coreutils first on the PATH since the script uses `sed -i` and
-  `date -d`. A default macOS volume ignores case, Linux's honours it, so mixed-case
-  tests (ticket 338) cover all three kinds of disk.
+- `.github/workflows/ci.yml` — **one page, then the platforms in parallel**
+  (ticket 328). `page` (`board-page.yml`, a `workflow_call` workflow: wasm32,
+  trunk, `trunk build --release`, uploaded as the `board-page` artifact) is
+  built once; every platform job downloads it into `crates/rite-ui-web/dist`
+  instead of running trunk. `rust` (Linux x86_64: fmt, both clippy runs,
+  `cargo test`, tests/test.sh) and `shell` (shellcheck, the reporter list
+  check) run on every pull request and push to main, and are the required
+  checks the Dependabot gate reads. A skipped required check counts as
+  passed, so `rust` runs even when `page` failed and fails at its first step.
+  **The full suite** adds `windows` (ticket 276; no longer allowed to fail),
+  `macos` (ticket 345: every crate's tests, then tests/test.sh with GNU sed
+  and coreutils first on the PATH; a default macOS volume ignores case, so
+  ticket 338's mixed-case tests cover all three kinds of disk) and
+  `linux-arm` (`ubuntu-24.04-arm`, the unit tests and tests/test.sh). It runs
+  when the `plan` job says so: a pull request from a `release/` or `hotfix/`
+  branch, a run by hand (`gh workflow run ci.yml --ref <branch>`), and
+  Wednesday to Friday at 06:00 London time (`schedule`, `timezone`; release,
+  testing and hotfix days, kanrite-documents' `docs/WAYS_OF_WORKING.md`).
+  `feature/`, `bugfix/` and `chore/` branches run Linux x86_64 only. The branch
+  type decides rather than a label, so the rule carries over to other forges.
+  `macos.yml` (the Tuesday run) is gone.
   **A failing workflow reaches the board** (ticket 348, `workflow-failures.yml`):
   when a listed workflow finishes on main, on a schedule or for a `v` tag, a failure
-  opens a GitHub issue (one per workflow and branch, `scripts/workflow-report.sh`,
+  opens a GitHub issue (one per workflow and branch, `scripts/workflow-report.sh`;
+  CI's scheduled and manual runs, the full suite, report as `CI (full suite)`,
+  so a Linux-only pass on main can't close a Windows or macOS failure;
   written with the repository secret `ISSUE_GENERATOR_TOKEN`),
   which rite's issue import turns into a TRIAGE ticket, and a later pass closes it.
   Not pull requests or Dependabot's branches. `workflow_run` needs every workflow
@@ -745,8 +759,10 @@ redundant. Their history is in git if it is ever wanted again.
 - `.github/workflows/release.yml` — on a `vX.Y.Z` tag, builds `rite` and
   `riteui` for Linux and macOS, x86_64 and aarch64 (ticket 085), and Windows
   (ticket 281: `x86_64-pc-windows-msvc` on `windows-latest`,
-  `aarch64-pc-windows-msvc` on `windows-11-arm`): WebKitGTK on
-  Linux, the wasm target and Trunk, `trunk build`, then `cargo build -p
+  `aarch64-pc-windows-msvc` on `windows-11-arm`): the board's page once
+  (`page`, `board-page.yml`, ticket 328), then for each target WebKitGTK on
+  Linux, the page downloaded into `crates/rite-ui-web/dist` (no trunk, so the
+  Arm Windows runner never runs Tailwind under emulation), `cargo build -p
   rite-cli -p rite-ui`, a `--version` smoke test, and `amd-<target>.zip`
   holding both (`rite.exe` and `riteui.exe` on Windows, zipped with
   `Compress-Archive`; `update_apply::file_name` adds the `.exe`). **The
@@ -2091,7 +2107,8 @@ Invocation model by major (breaking changes):
   then moves with `force`.
 - **The page is embedded at compile time** (`tauri.conf.json`'s
   `frontendDist` is `../rite-ui-web/dist`), so `trunk build` must run before
-  anything compiles `rite-ui` — CI does it first. The `custom-protocol`
+  anything compiles `rite-ui` — CI builds it once (`board-page.yml`) and every
+  job downloads it first. The `custom-protocol`
   feature is on by default so a plain `cargo build` makes a working board;
   `cargo tauri dev -- --no-default-features` in `crates/rite-ui` serves the
   page live from `trunk serve` instead.

@@ -29,7 +29,6 @@ on:
       - "CodeQL Advanced"
       - Dependabot gate
       - Dependabot gate (closed)
-      - macOS
       - Pages
       - Release
     types: [completed]
@@ -66,6 +65,11 @@ jobs:
       - uses: actions/checkout@v7
       # The run's details come in the environment, not in the script's text:
       # a branch name is data, not a command.
+      #
+      # CI's scheduled and manual runs are the full suite (every platform,
+      # ticket 328) and a push to main is Linux only, so they're reported as
+      # two workflows: otherwise a Linux-only pass would close the issue a
+      # Windows or macOS failure in the full suite opened.
       - name: Open or close the issue for ${{ github.event.workflow_run.name }}
         env:
           GH_TOKEN: ${{ secrets.ISSUE_GENERATOR_TOKEN }}
@@ -75,6 +79,9 @@ jobs:
           RUN_URL: ${{ github.event.workflow_run.html_url }}
           CONCLUSION: ${{ github.event.workflow_run.conclusion }}
         run: |
+          if [ "${WORKFLOW}" = "CI" ] && { [ "${EVENT}" = "schedule" ] || [ "${EVENT}" = "workflow_dispatch" ]; }; then
+            export WORKFLOW="CI (full suite)"
+          fi
           if [ "${CONCLUSION}" = "success" ]; then
             scripts/workflow-report.sh passed
           else
