@@ -704,7 +704,8 @@ redundant. Their history is in git if it is ever wanted again.
   shellcheck for the shell files. A `windows` job (ticket 276) is the third; none is a check the
   Dependabot gate reads beyond `rust` and `shell`. **macOS** (ticket 345) is its own
   workflow, `macos.yml`, run by hand (`workflow_dispatch`) and every Tuesday at 11:00
-  London time (the day before release day, below), not on
+  London time (the day before release day; kanrite-documents'
+  `docs/WAYS_OF_WORKING.md`), not on
   pull requests (about nine minutes): every crate's tests, then tests/test.sh with
   GNU sed and coreutils first on the PATH since the script uses `sed -i` and
   `date -d`. A default macOS volume ignores case, Linux's honours it, so mixed-case
@@ -717,6 +718,9 @@ redundant. Their history is in git if it is ever wanted again.
   Not pull requests or Dependabot's branches. `workflow_run` needs every workflow
   named, so `scripts/check-failure-reporter.sh` (the `shell` job) fails when a new
   workflow isn't in the list. A workflow that never runs can't report itself.
+  **Self-test** (`gh workflow run workflow-failures.yml -f result=failed`, then
+  `-f result=passed`): opens and closes "Workflow failed: self-test (main)"
+  with the same script and token, so a lapsed `ISSUE_GENERATOR_TOKEN` shows.
 - `.github/dependabot.yml` and the **Dependabot gate** (tickets 246,
   247; `.github/workflows/dependabot-gate.yml`, `scripts/dependabot-gate.sh`):
   weekly GitHub Actions and Cargo updates (Cargo's minor and patch grouped),
@@ -1855,13 +1859,10 @@ Cut releases by tag: `git tag -a vX.Y.Z && git push --tags` triggers
 major tag (`git tag -f -a vN`) and push it, since `install.sh` and the README
 `curl` URL point at `raw…/kanrite/rite/vN`.
 
-**Wednesday is release day** (decided by the user, 2026-11-03). A release is
-cut on a Wednesday when one is ready, not every Wednesday. The scheduled
-macOS run is Tuesday at 11:00 London time, so its result is in before the
-tag (GitHub starts scheduled runs late, sometimes by hours; if it hasn't
-reported, `gh workflow run macos.yml` gets one). Releasing mid-week leaves
-Thursday and Friday for a hotfix before the weekend. A hotfix is the
-exception: it ships when it's needed, any day.
+**When to release** is in kanrite-documents' `docs/WAYS_OF_WORKING.md`
+("The release week"): the Tuesday macOS run, Wednesday as release day when
+a release is ready, Thursday's post-release testing, and hotfixes. Read it
+before cutting a release; this file says only how.
 
 Invocation model by major (breaking changes):
 

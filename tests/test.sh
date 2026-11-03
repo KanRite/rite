@@ -1903,6 +1903,13 @@ assert "a group whose tickets are all done can be deleted, and they keep its nam
     && '${AMD}' group delete finished | grep -q 'deleted finished' \
     && ! test -d tasks/backlog/finished \
     && grep -q 'epic: \"finished\"' tasks/done/\${id}-*.md"
+assert "deleting a group commits its removal, leaving nothing behind (ticket 357)" \
+  bash -c "cd '${work}' && '${AMD}' group epic only-its-file >/dev/null \
+    && git ls-files --error-unmatch tasks/backlog/only-its-file/_group.md >/dev/null \
+    && '${AMD}' group delete only-its-file | grep -q 'deleted only-its-file' \
+    && test -z \"\$(git status --porcelain -- tasks/backlog/only-its-file)\" \
+    && ! git ls-files --error-unmatch tasks/backlog/only-its-file/_group.md 2>/dev/null \
+    && git log -1 --format=%s | grep -q 'group-delete: only-its-file'"
 assert "deleting an unknown group is an error" \
   bash -c "cd '${work}' && ! '${AMD}' group delete nope"
 rm -rf "${work}"
