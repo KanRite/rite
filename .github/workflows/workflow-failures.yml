@@ -13,6 +13,14 @@ name: Workflow failures
 # `workflow_run` needs the workflows named, so every workflow in this folder
 # is listed (scripts/check-failure-reporter.sh, in CI, fails when one isn't).
 # Nothing here can notice a workflow that never runs.
+#
+# Self-test (Actions > Workflow failures > Run workflow, or
+# `gh workflow run workflow-failures.yml -f result=failed`, then
+# `-f result=passed`): opens, then closes, the issue "Workflow failed:
+# self-test (main)" through the same script and token as a real failure. Run
+# it after ISSUE_GENERATOR_TOKEN is renewed: when the token lapses this job
+# fails, and nothing reports the reporter. The issue becomes a TRIAGE ticket
+# like any other; mark it done once it's seen.
 
 on:
   workflow_run:
@@ -25,6 +33,13 @@ on:
       - Pages
       - Release
     types: [completed]
+  workflow_dispatch:
+    inputs:
+      result:
+        description: "failed opens the self-test issue; passed closes it"
+        type: choice
+        options: [failed, passed]
+        default: failed
 
 # The issues are written with the repository secret ISSUE_GENERATOR_TOKEN,
 # not the job's own token, which only checks the repository out.
@@ -39,7 +54,8 @@ jobs:
     # of Dependabot's branches. Cancelled, skipped and neutral runs say
     # nothing either way.
     if: >-
-      github.event.workflow_run.event != 'pull_request'
+      github.event_name == 'workflow_run'
+      && github.event.workflow_run.event != 'pull_request'
       && github.event.workflow_run.event != 'pull_request_target'
       && !startsWith(github.event.workflow_run.head_branch, 'dependabot/')
       && (github.event.workflow_run.head_branch == github.event.repository.default_branch
@@ -64,3 +80,19 @@ jobs:
           else
             scripts/workflow-report.sh failed
           fi
+
+  self-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v7
+      - name: Self-test, ${{ inputs.result }}
+        env:
+          GH_TOKEN: ${{ secrets.ISSUE_GENERATOR_TOKEN }}
+          WORKFLOW: self-test
+          BRANCH: ${{ github.ref_name }}
+          EVENT: workflow_dispatch
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RESULT: ${{ inputs.result }}
+        run: scripts/workflow-report.sh "${RESULT}"

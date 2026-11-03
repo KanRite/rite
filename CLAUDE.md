@@ -718,6 +718,9 @@ redundant. Their history is in git if it is ever wanted again.
   Not pull requests or Dependabot's branches. `workflow_run` needs every workflow
   named, so `scripts/check-failure-reporter.sh` (the `shell` job) fails when a new
   workflow isn't in the list. A workflow that never runs can't report itself.
+  **Self-test** (`gh workflow run workflow-failures.yml -f result=failed`, then
+  `-f result=passed`): opens and closes "Workflow failed: self-test (main)"
+  with the same script and token, so a lapsed `ISSUE_GENERATOR_TOKEN` shows.
 - `.github/dependabot.yml` and the **Dependabot gate** (tickets 246,
   247; `.github/workflows/dependabot-gate.yml`, `scripts/dependabot-gate.sh`):
   weekly GitHub Actions and Cargo updates (Cargo's minor and patch grouped),
