@@ -5,8 +5,11 @@
 # so a new workflow would otherwise be left out without anyone noticing, and a
 # red one would never reach the board. Run in CI's shell job.
 #
-# Compares each `name:` in .github/workflows/*.yml (except the reporter's own)
-# with the list under `workflows:` in workflow-failures.yml.
+# Compares each `name:` in .github/workflows/*.yml (except the reporter's own,
+# and a workflow that only runs inside others, `on: workflow_call` alone, such
+# as board-page.yml: it never finishes a run of its own for `workflow_run` to
+# see, and its failure fails the workflow that called it) with the list under
+# `workflows:` in workflow-failures.yml.
 set -euo pipefail
 
 dir="${1:-.github/workflows}"
@@ -15,7 +18,21 @@ reporter="${dir}/workflow-failures.yml"
 # A YAML scalar without its quotes and trailing space.
 unquote() { sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"\(.*\)"$/\1/'; }
 
-declared="$(grep -h '^name:' "${dir}"/*.yml | sed 's/^name:[[:space:]]*//' | unquote | sort -u)"
+# Whether a workflow's only trigger is workflow_call. Its triggers are what
+# follows `on:` on the same line (`on: push`), or the keys indented under it.
+called_only() {
+  local triggers
+  triggers="$(awk '
+    /^on:/ { on = 1; sub(/^on:[[:space:]]*/, ""); if ($0 != "") print; next }
+    on && /^[^[:space:]#]/ { exit }
+    on && /^  [a-z_]+:/ { sub(/^  /, ""); sub(/:.*/, ""); print }
+  ' "$1")"
+  [ "${triggers}" = "workflow_call" ]
+}
+declared="$(for file in "${dir}"/*.yml; do
+  called_only "${file}" && continue
+  grep -h '^name:' "${file}" | sed 's/^name:[[:space:]]*//'
+done | unquote | sort -u)"
 declared="$(printf '%s\n' "${declared}" | grep -vx 'Workflow failures' || true)"
 
 # The list items between `workflows:` and `types:`.

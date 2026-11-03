@@ -1,0 +1,47 @@
+name: Board page
+
+# The board's page (ticket 328): the WebAssembly, HTML and CSS riteui embeds
+# at compile time (tauri.conf.json's frontendDist is ../rite-ui-web/dist). It
+# is the same for every target, so it's built once, here, on Linux, and every
+# platform's job downloads it instead of running trunk and Tailwind itself.
+# That also keeps Tailwind off the Arm Windows runner, where its x64 build
+# crashed under emulation. ci.yml and release.yml call it; it never runs on its
+# own.
+#
+# The artifact is `board-page`: crates/rite-ui-web/dist, to be downloaded back
+# into crates/rite-ui-web/dist.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  page:
+    runs-on: ubuntu-latest
+    # Usually two to five minutes.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Rust (stable + wasm32)
+        run: |
+          rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown
+          rustup default stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: board-page
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: trunk
+      - name: Build the desktop board's front end
+        working-directory: crates/rite-ui-web
+        run: trunk build --release
+      - uses: actions/upload-artifact@v7
+        with:
+          name: board-page
+          path: crates/rite-ui-web/dist
+          if-no-files-found: error
+          retention-days: 7
