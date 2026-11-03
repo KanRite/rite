@@ -8,23 +8,60 @@
 # real data. For screenshots, build it outside your home folder (e.g.
 # /tmp/acme): riteui's header shows the board's path.
 #
-#   scripts/demo-board.sh [DIR]      # default: ./kanrite-demo
+#   scripts/demo-board.sh [--open] [DIR]      # default DIR: ~/kanrite-demo
 #
 # It keeps its own KanRite config in DIR/config, so your registry, theme and
-# remembered board are untouched. Open it with the command it prints at the
-# end. Run it again to rebuild from scratch (it refuses a DIR it didn't make).
+# remembered board are untouched. --open starts riteui on it once it's built;
+# otherwise open it with the command it prints at the end. Run it again to
+# rebuild from scratch (it refuses a DIR it didn't make).
+#
+# DIR must be outside any git repository (ticket 359): riteui started inside
+# a repository with no board of its own looks for one beside that
+# repository, so a demo inside the rite clone could open your real
+# kanrite-tickets instead.
+#
+# Which rite builds it: $AMD if given, else the installed one, else a build in
+# this clone. riteui is the one beside that rite ($RITEUI overrides), so to
+# look at a branch, build it and point AMD at the build:
+#
+#   cargo xtask build && AMD=target/debug/rite scripts/demo-board.sh --open
 set -euo pipefail
 
-DIR="${1:-./kanrite-demo}"
+OPEN=0
+DIR=""
+for arg in "$@"; do
+  case "${arg}" in
+    --open) OPEN=1 ;;
+    -*) echo "unknown option ${arg}; usage: $0 [--open] [DIR]" >&2; exit 2 ;;
+    *) DIR="${arg}" ;;
+  esac
+done
+DIR="${DIR:-${HOME}/kanrite-demo}"
 SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# Which rite: $AMD if given, else the installed one, else a build in this
-# clone. Never a stale build over one you asked for.
+# Never a stale build over one you asked for.
 if [ -z "${AMD:-}" ]; then
   AMD="$(command -v rite || true)"
   [ -z "${AMD}" ] && [ -x "${SELF}/target/release/rite" ] && AMD="${SELF}/target/release/rite"
   [ -z "${AMD}" ] && [ -x "${SELF}/target/debug/rite" ] && AMD="${SELF}/target/debug/rite"
 fi
 [ -n "${AMD}" ] || { echo "rite not found: install it, or build it here first" >&2; exit 1; }
+AMD="$(cd "$(dirname "${AMD}")" && pwd)/$(basename "${AMD}")"
+if [ -z "${RITEUI:-}" ]; then
+  if [ -x "$(dirname "${AMD}")/riteui" ]; then
+    RITEUI="$(dirname "${AMD}")/riteui"
+  else
+    RITEUI="$(command -v riteui || true)"
+  fi
+fi
+[ "${OPEN}" = 0 ] || [ -n "${RITEUI}" ] || { echo "riteui not found beside ${AMD} or on the PATH; set RITEUI" >&2; exit 1; }
+
+# The nearest folder that exists at or above DIR's parent: is it in a repository?
+probe="$(dirname "${DIR}")"
+while [ ! -d "${probe}" ]; do probe="$(dirname "${probe}")"; done
+if git -C "${probe}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "${DIR} is inside the git repository $(git -C "${probe}" rev-parse --show-toplevel): riteui started there could open that repository's neighbours rather than the demo. Choose a folder outside any repository (with no DIR it's ~/kanrite-demo)." >&2
+  exit 1
+fi
 
 if [ -e "${DIR}" ]; then
   [ -f "${DIR}/.kanrite-demo" ] || [ -f "${DIR}/.agile-md-demo" ] || { echo "${DIR} exists and isn't a demo board; choose another DIR" >&2; exit 1; }
@@ -306,7 +343,13 @@ rite shared-documents acme-handbook
 
 cat <<EOF
 Demo board ready: ${DIR}
-  desktop board:  cd "${DIR}" && XDG_CONFIG_HOME="${DIR}/config" riteui
-  command line:   cd "${DIR}/acme-tickets" && XDG_CONFIG_HOME="${DIR}/config" rite board
+  desktop board:  cd "${DIR}" && XDG_CONFIG_HOME="${DIR}/config" ${RITEUI:-riteui}
+  command line:   cd "${DIR}/acme-tickets" && XDG_CONFIG_HOME="${DIR}/config" ${AMD} board
 Rebuild any time:  $0 "${DIR}"
 EOF
+if [ "${OPEN}" = 1 ]; then
+  # As the printed command: the demo's own config, and none of the settings
+  # that built it quietly.
+  cd "${DIR}"
+  exec env -u RITE_NO_INPUT -u RITE_NO_BRANCH -u RITE_SYNC XDG_CONFIG_HOME="${DIR}/config" "${RITEUI}"
+fi

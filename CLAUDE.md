@@ -761,13 +761,19 @@ redundant. Their history is in git if it is ever wanted again.
 - `docs/adr/` — architecture decision records: why the tool is shaped as it
   is, and what each decision costs. `docs/workspace-split.md` is the plan for
   the rite-lib / rite-cli / rite-ui split (ADR-0004).
-- `scripts/demo-board.sh [DIR]` — builds a fictional "Acme" project for
+- `scripts/demo-board.sh [--open] [DIR]` — builds a fictional "Acme" project for
   screenshots (ticket 147) through the `rite` CLI itself: tickets, code
   repositories, users, tags, two epics, a started sprint, a draft, every
   column, a documents repository and a shared handbook, ideas with votes and
   notes, a roadmap on track, locks only in doing, creation dates spread back. Own
   `XDG_CONFIG_HOME` in `DIR/config`; refuses a DIR it didn't make
-  (`.kanrite-demo` marker; `.agile-md-demo` is still accepted). Shellchecked in CI.
+  (`.kanrite-demo` marker; `.agile-md-demo` is still accepted), and one
+  inside a git repository (ticket 359: riteui started there looks beside
+  that repository, so in the rite clone it could open the real
+  kanrite-tickets); DIR defaults to `~/kanrite-demo`. `--open` starts
+  riteui on it, the one beside the `rite` that built it (`$AMD`, else the
+  installed one, else this clone's build; `$RITEUI` overrides), as do the
+  commands it prints. Shellchecked in CI.
 - `SECURITY.md` (ticket 245): fixes in the latest 4.x only, reports
   privately through the Security tab's advisories, acknowledged within 7
   days; covers rite, `rite mcp`, riteui, `install.sh`/`rite-uninstall` and the

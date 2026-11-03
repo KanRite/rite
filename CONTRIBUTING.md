@@ -96,11 +96,19 @@ To work on the board with live reload, run
 `trunk serve` for you, and `--no-default-features` serves the page live
 instead of the copy built into the binary.
 
-For screenshots, `scripts/demo-board.sh [DIR]` builds a demo project: a
-fictional shop with every column, epics, a running sprint, assignees,
-priorities, points, tags, a draft and locks, all made-up names at
-example.com. It keeps its own config in `DIR/config`, so your own boards
-and settings are untouched, and prints the command to open it.
+For screenshots, or to try a change on a full board,
+`scripts/demo-board.sh [--open] [DIR]` builds a demo project: a fictional
+shop with every column, epics, a running sprint, assignees, priorities,
+points, tags, a draft and locks, all made-up names at example.com. It
+keeps its own config in `DIR/config`, so your own boards and settings are
+untouched. `DIR` defaults to `~/kanrite-demo` and must be outside any git
+repository. It prints the command to open it, and `--open` opens it
+straight away. The riteui it opens is the one beside the `rite` that
+built it, so to look at your branch:
+
+```bash
+cargo xtask build && AMD=target/debug/rite scripts/demo-board.sh --open
+```
 
 ## Maintainers
 
