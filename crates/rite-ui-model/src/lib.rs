@@ -1360,6 +1360,9 @@ pub struct TicketCounts {
     /// sprints, drafts included), todo, doing, and a project's own columns
     /// that aren't done.
     pub open: usize,
+    /// Of those, in a todo-kind or doing-kind column (ticket 358).
+    #[serde(default)]
+    pub active: usize,
     /// Of those, priority top.
     pub top: usize,
     /// Of those, tagged TRIAGE. Always top as well, so each is in both.
@@ -1367,8 +1370,11 @@ pub struct TicketCounts {
 }
 
 impl TicketCounts {
-    fn add(&mut self, ticket: &TicketSummary) {
+    fn add(&mut self, ticket: &TicketSummary, active: bool) {
         self.open += 1;
+        if active {
+            self.active += 1;
+        }
         if ticket.priority.eq_ignore_ascii_case("top") {
             self.top += 1;
         }
@@ -1391,12 +1397,15 @@ impl Board {
     pub fn counts(&self) -> TicketCounts {
         let mut counts = TicketCounts::default();
         for column in &self.columns {
-            if column.column.kind() != Kind::Done {
-                column.tickets.iter().for_each(|t| counts.add(t));
+            let kind = column.column.kind();
+            if kind != Kind::Done {
+                let active = matches!(kind, Kind::Todo | Kind::Doing);
+                column.tickets.iter().for_each(|t| counts.add(t, active));
             }
         }
+        // An epic's or sprint's tickets here are the ones in its backlog folder.
         for epic in &self.epics {
-            epic.tickets.iter().for_each(|t| counts.add(t));
+            epic.tickets.iter().for_each(|t| counts.add(t, false));
         }
         counts
     }

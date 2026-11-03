@@ -2888,6 +2888,7 @@ async fn project_counts(root: String) -> Result<rite_ui_model::TicketCounts> {
         let counts = my_work::counts(&refs).map_err(err)?;
         Ok(rite_ui_model::TicketCounts {
             open: counts.open,
+            active: counts.active,
             top: counts.top,
             triage: counts.triage,
         })
@@ -4367,24 +4368,35 @@ mod tests {
                 state: State::Pending,
             })
             .unwrap();
-        new_ticket_with(&project, "plain", "low", &[], None);
-        new_ticket_with(&project, "urgent", "top", &[], None);
+        let plain = new_ticket_with(&project, "plain", "low", &[], None);
+        let urgent = new_ticket_with(&project, "urgent", "top", &[], None);
         new_ticket_with(&project, "needs triage", "", &["TRIAGE"], None);
         new_ticket_with(&project, "in an epic", "top", &[], Some("e1"));
         let finished = new_ticket_with(&project, "finished", "top", &[], None);
-        std::fs::rename(
-            board.dir(Column::Backlog).join(&finished),
-            board.dir(Column::Done).join(&finished),
-        )
-        .unwrap();
+        // Active (ticket 358) is todo and doing: one of each.
+        for (file, to) in [
+            (&plain, Column::Todo),
+            (&urgent, Column::Doing),
+            (&finished, Column::Done),
+        ] {
+            std::fs::rename(
+                board.dir(Column::Backlog).join(file),
+                board.dir(to).join(file),
+            )
+            .unwrap();
+        }
 
         let page = project.summary().unwrap().counts();
         let library = rite_lib::my_work::counts(&[board]).unwrap();
-        // Done is left out; the epic's ticket is in; a TRIAGE ticket is top.
-        assert_eq!((page.open, page.top, page.triage), (4, 3, 1));
+        // Done is left out; the epic's ticket is in; a TRIAGE ticket is top;
+        // the todo and doing tickets are active.
         assert_eq!(
-            (library.open, library.top, library.triage),
-            (page.open, page.top, page.triage)
+            (page.open, page.active, page.top, page.triage),
+            (4, 2, 3, 1)
+        );
+        assert_eq!(
+            (library.open, library.active, library.top, library.triage),
+            (page.open, page.active, page.top, page.triage)
         );
     }
 
