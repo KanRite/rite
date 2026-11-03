@@ -73,6 +73,14 @@ zip = { version = "9", default-features = false, features = ["deflate-flate2-zli
 [profile.dev.package."*"]
 debug = false
 
+# gemm-f16 (candle's half-precision matrix code) doesn't compile unoptimised
+# for generic Linux on Arm, "instruction requires: fullfp16", which broke
+# every debug build there: tests, `cargo xtask build`, a source install. Apple
+# silicon always has fp16, and release builds are optimised, so neither
+# showed it; CI's linux-arm job did (ticket 328). Optimised it compiles.
+[profile.dev.package.gemm-f16]
+opt-level = 3
+
 [profile.release]
 lto = "thin"
 codegen-units = 1
