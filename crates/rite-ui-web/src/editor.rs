@@ -464,7 +464,10 @@ pub fn Editor(doc: TicketDocument) -> impl IntoView {
             </Show>
             // Everything above the buttons scrolls as one, so a short window
             // scrolls the dialog instead of squeezing the editor to nothing.
-            <div class="-mx-1 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-1">
+            // It never gets shorter than `min-h-48` (ticket 356): zoomed in,
+            // the bars above it took all the room and it vanished; the whole
+            // dialog scrolls instead.
+            <div class="-mx-1 flex min-h-48 flex-1 flex-col gap-3 overflow-y-auto px-1">
             // ---- Frontmatter as a form (rich mode only)
             <Show when=move || is_rich() && has_frontmatter.get()>
                 <div class="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_12rem]">

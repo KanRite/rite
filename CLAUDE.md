@@ -703,7 +703,8 @@ redundant. Their history is in git if it is ever wanted again.
 - `.github/workflows/ci.yml` — fmt + clippy + cargo test + tests/test.sh, and
   shellcheck for the shell files. A `windows` job (ticket 276) is the third; none is a check the
   Dependabot gate reads beyond `rust` and `shell`. **macOS** (ticket 345) is its own
-  workflow, `macos.yml`, run by hand (`workflow_dispatch`) and every Monday, not on
+  workflow, `macos.yml`, run by hand (`workflow_dispatch`) and every Tuesday at 11:00
+  London time (the day before release day, below), not on
   pull requests (about nine minutes): every crate's tests, then tests/test.sh with
   GNU sed and coreutils first on the PATH since the script uses `sed -i` and
   `date -d`. A default macOS volume ignores case, Linux's honours it, so mixed-case
@@ -761,13 +762,19 @@ redundant. Their history is in git if it is ever wanted again.
 - `docs/adr/` — architecture decision records: why the tool is shaped as it
   is, and what each decision costs. `docs/workspace-split.md` is the plan for
   the rite-lib / rite-cli / rite-ui split (ADR-0004).
-- `scripts/demo-board.sh [DIR]` — builds a fictional "Acme" project for
+- `scripts/demo-board.sh [--open] [DIR]` — builds a fictional "Acme" project for
   screenshots (ticket 147) through the `rite` CLI itself: tickets, code
   repositories, users, tags, two epics, a started sprint, a draft, every
   column, a documents repository and a shared handbook, ideas with votes and
   notes, a roadmap on track, locks only in doing, creation dates spread back. Own
   `XDG_CONFIG_HOME` in `DIR/config`; refuses a DIR it didn't make
-  (`.kanrite-demo` marker; `.agile-md-demo` is still accepted). Shellchecked in CI.
+  (`.kanrite-demo` marker; `.agile-md-demo` is still accepted), and one
+  inside a git repository (ticket 359: riteui started there looks beside
+  that repository, so in the rite clone it could open the real
+  kanrite-tickets); DIR defaults to `~/kanrite-demo`. `--open` starts
+  riteui on it, the one beside the `rite` that built it (`$AMD`, else the
+  installed one, else this clone's build; `$RITEUI` overrides), as do the
+  commands it prints. Shellchecked in CI.
 - `SECURITY.md` (ticket 245): fixes in the latest 4.x only, reports
   privately through the Security tab's advisories, acknowledged within 7
   days; covers rite, `rite mcp`, riteui, `install.sh`/`rite-uninstall` and the
@@ -777,7 +784,7 @@ redundant. Their history is in git if it is ever wanted again.
   `docs/user-guide.md`** (ticket 239), and building from source in
   `CONTRIBUTING.md`. A user-visible change updates the guide (and the
   README's feature list if it's a feature).
-- `pages/` — the website (tickets 205, 211), published to GitHub Pages by
+- `pages/` — the website (tickets 205, 211), published to GitHub Pages at `https://kanrite.com` by
   `.github/workflows/pages.yml` (only on a change under `pages/` on main, or
   by hand; the repository's Pages source must be "GitHub Actions"). Plain
   HTML and CSS, no build: `index.html`, `style.css`, `screenshots/` (from
@@ -1846,8 +1853,17 @@ must keep working on data a newer one has touched. So:
 Cut releases by tag: `git tag -a vX.Y.Z && git push --tags` triggers
 `release.yml`, which builds and attaches `amd-<target>.zip`. Force-move the
 major tag (`git tag -f -a vN`) and push it, since `install.sh` and the README
-`curl` URL point at `raw…/kanrite/rite/vN`. Invocation model by major (breaking
-changes):
+`curl` URL point at `raw…/kanrite/rite/vN`.
+
+**Wednesday is release day** (decided by the user, 2026-11-03). A release is
+cut on a Wednesday when one is ready, not every Wednesday. The scheduled
+macOS run is Tuesday at 11:00 London time, so its result is in before the
+tag (GitHub starts scheduled runs late, sometimes by hours; if it hasn't
+reported, `gh workflow run macos.yml` gets one). Releasing mid-week leaves
+Thursday and Friday for a hotfix before the weekend. A hotfix is the
+exception: it ships when it's needed, any day.
+
+Invocation model by major (breaking changes):
 
 - **v1** — script vendored per board (`tasks/task`); board = the script's own dir.
 - **v2** — global `task` command; board discovered from the repo root; `task init`.
@@ -1875,8 +1891,10 @@ changes):
   `KanRite/amd` on 2026-10-27): GitHub redirects git, the web, raw files
   and the releases API from the old names, and every 4.x build's update
   check goes through that redirect, so no repository may ever be created
-  as `KanRite/amd` again. The website is `kanrite.github.io/rite`; Pages
-  doesn't redirect, so the old `/amd` address stops when it redeploys.
+  as `KanRite/amd` again. The website is `https://kanrite.com` (ticket
+  344: the Pages custom domain, verified for the org, HTTPS enforced), and
+  `kanrite.github.io/rite` redirects there; Pages didn't redirect the old
+  `/amd` address, which stopped when it redeployed.
   **Names people read say KanRite** (ticket 315): `--help`, messages,
   riteui's header and Preferences, the README and the user guide (whose
   "Coming from agile-md" section explains the old names). The MCP server
