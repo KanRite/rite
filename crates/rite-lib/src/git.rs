@@ -927,8 +927,9 @@ pub fn commit_paths_locally(repo: &Path, message: &str, paths: &BTreeSet<PathBuf
     }
     // Only `add` paths that still exist on disk. A path that's gone — the
     // old side of a `git mv`-based rename, or a `git rm --cached`'d
-    // archived ticket — is already fully staged by whatever produced that
-    // rename or removal; re-adding it errors ("did not match any files"),
+    // archived ticket — is usually already fully staged by whatever produced
+    // that rename or removal (one removed without git isn't; see below);
+    // re-adding it errors ("did not match any files"),
     // since there's nothing left for `add` to reconcile. The commit's own
     // pathspec below still needs every path, gone or not, to capture the
     // whole change — same reason a rename needs both sides there, not just
@@ -947,6 +948,25 @@ pub fn commit_paths_locally(repo: &Path, message: &str, paths: &BTreeSet<PathBuf
         .context("running git add")?;
         if !ok {
             bail!(failed("git add", &detail));
+        }
+    }
+    // A path removed from disk without git (`Board::delete_group` removes the
+    // folder) is still in the index, so nothing would be staged for it and
+    // the check below would skip the commit (ticket 357). Stage its removal;
+    // `--ignore-unmatch` leaves a path git has already staged as gone alone.
+    let gone: Vec<&PathBuf> = paths
+        .iter()
+        .filter(|path| !repo.join(path).exists())
+        .collect();
+    if !gone.is_empty() {
+        let (ok, detail) = run(Command::new("git")
+            .arg("-C")
+            .arg(repo)
+            .args(["rm", "--cached", "--quiet", "--ignore-unmatch", "--"])
+            .args(gone))
+        .context("running git rm")?;
+        if !ok {
+            bail!(failed("git rm", &detail));
         }
     }
     // A write that left the files as they were (declaring a repository the
@@ -1351,6 +1371,30 @@ mod tests {
         .unwrap();
         commit_paths_locally(&repo, "register: b", &paths).unwrap();
         assert_ne!(head(&repo), before);
+    }
+
+    #[test]
+    fn a_file_removed_without_git_is_committed_as_removed() {
+        // Ticket 357: `delete_group` removes an epic's folder from disk, so
+        // its `_group.md` is gone but still in the index.
+        let dir = tempfile::tempdir().unwrap();
+        let repo = dir.path().join("repo");
+        init_repo(&repo);
+        std::fs::create_dir_all(repo.join("tasks/backlog/e1")).unwrap();
+        std::fs::write(repo.join("tasks/backlog/e1/_group.md"), "name: e1\n").unwrap();
+        commit_all(&repo, "seed").unwrap();
+        let before = head(&repo);
+        std::fs::remove_dir_all(repo.join("tasks/backlog/e1")).unwrap();
+        let paths = BTreeSet::from([PathBuf::from("tasks/backlog/e1/_group.md")]);
+        commit_paths_locally(&repo, "group-delete: e1", &paths).unwrap();
+        assert_ne!(head(&repo), before, "the removal was committed");
+        let tracked = Command::new("git")
+            .arg("-C")
+            .arg(&repo)
+            .args(["ls-files", "tasks/backlog/e1"])
+            .output()
+            .unwrap();
+        assert!(tracked.stdout.is_empty(), "still tracked");
     }
 
     #[test]
