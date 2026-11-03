@@ -1863,6 +1863,19 @@ reported, `gh workflow run macos.yml` gets one). Releasing mid-week leaves
 Thursday and Friday for a hotfix before the weekend. A hotfix is the
 exception: it ships when it's needed, any day.
 
+**Thursday is post-release testing day** in a week with a release (decided
+by the user, 2026-11-03, ticket 360). The release is tried the way users
+get it, on Linux, macOS and Windows:
+
+- a fresh install from the README's install lines (`curl … | bash`,
+  `irm … | iex`), then `rite --version` and `riteui` start;
+- an update from the previous release, through riteui's update bar (What's
+  new shows the notes, Update restarts into the new version) and through
+  `rite update` in a terminal;
+- `rite update --rollback` back to the previous release, then forward again.
+
+What it finds is fixed as a hotfix on Thursday or Friday, or gets a ticket.
+
 Invocation model by major (breaking changes):
 
 - **v1** — script vendored per board (`tasks/task`); board = the script's own dir.
