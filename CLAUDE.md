@@ -778,7 +778,7 @@ redundant. Their history is in git if it is ever wanted again.
   `docs/user-guide.md`** (ticket 239), and building from source in
   `CONTRIBUTING.md`. A user-visible change updates the guide (and the
   README's feature list if it's a feature).
-- `pages/` — the website (tickets 205, 211), published to GitHub Pages by
+- `pages/` — the website (tickets 205, 211), published to GitHub Pages at `https://kanrite.com` by
   `.github/workflows/pages.yml` (only on a change under `pages/` on main, or
   by hand; the repository's Pages source must be "GitHub Actions"). Plain
   HTML and CSS, no build: `index.html`, `style.css`, `screenshots/` (from
@@ -1885,8 +1885,10 @@ Invocation model by major (breaking changes):
   `KanRite/amd` on 2026-10-27): GitHub redirects git, the web, raw files
   and the releases API from the old names, and every 4.x build's update
   check goes through that redirect, so no repository may ever be created
-  as `KanRite/amd` again. The website is `kanrite.github.io/rite`; Pages
-  doesn't redirect, so the old `/amd` address stops when it redeploys.
+  as `KanRite/amd` again. The website is `https://kanrite.com` (ticket
+  344: the Pages custom domain, verified for the org, HTTPS enforced), and
+  `kanrite.github.io/rite` redirects there; Pages didn't redirect the old
+  `/amd` address, which stopped when it redeployed.
   **Names people read say KanRite** (ticket 315): `--help`, messages,
   riteui's header and Preferences, the README and the user guide (whose
   "Coming from agile-md" section explains the old names). The MCP server
