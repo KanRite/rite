@@ -18,7 +18,11 @@ For a security problem, don't open a public issue; see "Security" below.
 
 1. Fork the repository and branch from `main`. Branch names start with a
    type: `feature/`, `bugfix/`, `hotfix/`, `release/` or `chore/`
-   (for example `bugfix/drag-onto-a-full-column`).
+   (for example `bugfix/drag-onto-a-full-column`). The type also decides
+   what CI runs: `feature/`, `bugfix/` and `chore/` pull requests are
+   checked on Linux x86_64, and `release/` and `hotfix/` ones on every
+   platform (Linux x86_64 and Arm, Windows and macOS). To try any branch on
+   every platform, run CI by hand: `gh workflow run ci.yml --ref <branch>`.
 2. Make the change. "Building from source" below has the build; CI runs
    the same checks, so run them first:
 
