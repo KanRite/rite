@@ -3,10 +3,13 @@ name: macOS
 # macOS (ticket 345): release.yml ships rite and riteui for macOS, and nothing
 # else tests them there. A run takes about nine minutes, so it isn't a check on
 # every pull request: it runs by hand (Actions > macOS > Run workflow, or
-# `gh workflow run macos.yml`) and every Monday, so a macOS problem shows up in
-# days rather than in a release. It is its own workflow, so running it doesn't
-# run CI's jobs, and the Dependabot gate (which reads `rust` and `shell`) never
-# waits for it. A default macOS volume ignores case like NTFS, so this is where
+# `gh workflow run macos.yml`) and every Tuesday at 11:00 London time, the day
+# before release day (Wednesday; CLAUDE.md, "Versioning & releasing"), so a
+# macOS problem shows up before a release rather than in one. GitHub can start
+# a scheduled run hours late (2 November's 10:30 run started at 20:28 UTC), so a
+# Tuesday morning slot still reports before Wednesday. It is its own workflow,
+# so running it doesn't run CI's jobs, and the Dependabot gate (which reads
+# `rust` and `shell`) never waits for it. A default macOS volume ignores case like NTFS, so this is where
 # the third kind of disk is tested (ticket 338).
 #
 # Scheduled workflows run on the default branch, and GitHub stops them after 60
@@ -14,7 +17,7 @@ name: macOS
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 10 * * 1'
+    - cron: '0 11 * * 2'
       timezone: "Europe/London"
 
 permissions:

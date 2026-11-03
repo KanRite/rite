@@ -1,6 +1,6 @@
-//! The count of open tickets, with the top and TRIAGE counts in red (ticket
-//! 349): by the board's name in the header, and on each project's row on the
-//! landing page.
+//! The count of open tickets, then how many are active (in todo or doing,
+//! ticket 358), then the top and TRIAGE counts in red (ticket 349): in the
+//! board's header, and on each project's row on the landing page.
 //!
 //! Open means not in a done column. A TRIAGE ticket is always top, so each is
 //! in both red counts: two readings of the same urgent work. A kind with none
@@ -14,7 +14,7 @@ use rite_ui_model::TicketCounts;
 use crate::api;
 use crate::app::{Ctx, View};
 
-/// The three numbers, as `42 open  7 top  3 triage`.
+/// The numbers, as `42 open  5 active  7 top  3 triage`.
 pub fn counts_view(counts: TicketCounts) -> impl IntoView {
     view! {
         <span
@@ -22,6 +22,12 @@ pub fn counts_view(counts: TicketCounts) -> impl IntoView {
             title="Open tickets: every ticket not done. Top and TRIAGE are counted among them, and a TRIAGE ticket is always top"
         >
             <span class="text-slate-600 dark:text-slate-300">{format!("{} open", counts.open)}</span>
+            <span
+                class="text-slate-600 dark:text-slate-300"
+                title="Open tickets in a to do or doing column: being worked on, or next"
+            >
+                {format!("{} active", counts.active)}
+            </span>
             {(counts.top > 0)
                 .then(|| {
                     view! {

@@ -69,6 +69,9 @@ pub struct Counts {
     /// epics and sprints, drafts included), todo, doing and any column of the
     /// project's own that isn't done.
     pub open: usize,
+    /// Of those, in a todo-kind or doing-kind column (ticket 358): being
+    /// worked on, or next.
+    pub active: usize,
     /// Of those, priority top.
     pub top: usize,
     /// Of those, tagged TRIAGE. Always top as well (ticket 248), so each is
@@ -85,8 +88,12 @@ pub fn counts(boards: &[&Board]) -> anyhow::Result<Counts> {
             if column.is(Kind::Done) {
                 continue;
             }
+            let active = column.is(Kind::Todo) || column.is(Kind::Doing);
             for task in board.tasks_in(column)? {
                 counts.open += 1;
+                if active {
+                    counts.active += 1;
+                }
                 if task.priority() == crate::task::TOP {
                     counts.top += 1;
                 }
