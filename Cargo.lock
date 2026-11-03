@@ -4452,7 +4452,7 @@ dependencies = [
 
 [[package]]
 name = "rite-cli"
-version = "5.0.0"
+version = "5.1.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -4471,7 +4471,7 @@ dependencies = [
 
 [[package]]
 name = "rite-lib"
-version = "5.0.0"
+version = "5.1.0"
 dependencies = [
  "anyhow",
  "deunicode",
@@ -4487,7 +4487,7 @@ dependencies = [
 
 [[package]]
 name = "rite-ui"
-version = "5.0.0"
+version = "5.1.0"
 dependencies = [
  "alacritty_terminal",
  "anyhow",
@@ -4511,7 +4511,7 @@ dependencies = [
 
 [[package]]
 name = "rite-ui-model"
-version = "5.0.0"
+version = "5.1.0"
 dependencies = [
  "deunicode",
  "pulldown-cmark",
@@ -4521,7 +4521,7 @@ dependencies = [
 
 [[package]]
 name = "rite-ui-web"
-version = "5.0.0"
+version = "5.1.0"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
@@ -6950,7 +6950,7 @@ dependencies = [
 
 [[package]]
 name = "xtask"
-version = "5.0.0"
+version = "5.1.0"
 
 [[package]]
 name = "xxhash-rust"
