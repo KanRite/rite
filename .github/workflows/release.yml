@@ -142,6 +142,10 @@ jobs:
     needs: build
     if: ${{ !cancelled() && github.ref_type == 'tag' }}
     runs-on: ubuntu-latest
+    # It only downloads the zips and uploads them, usually under a minute;
+    # like every job, it has a limit well short of GitHub's six hours (ticket
+    # 327).
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
 
