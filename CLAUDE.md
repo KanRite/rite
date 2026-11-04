@@ -1548,7 +1548,8 @@ off**, ticket 141) to
   kind, related, parent and children, clones), from either end, each
   once. A card with a tree shows it beside the tree icon; one linked
   otherwise (a parent, a clone, a started sprint's ticket) shows a link
-  icon and the count; one with none shows a small hollow blue dot.
+  icon and the count; one with none shows nothing (ticket 369 removed the
+  hollow blue dot it had: a mark for "no links" told nobody anything).
 
 - **One ticket, one template.** There are no ticket types any more: `admin` and
   `development` collapsed into fields you either fill in or don't.

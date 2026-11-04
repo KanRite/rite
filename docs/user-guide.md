@@ -327,8 +327,8 @@ any ticket in it to go to its card. Done tickets are left out until you
 tick "Include done". A sprint that can't start lists what's
 missing, each with "Show the tree".
 Each card also says how many tickets it's linked to (beside the tree icon,
-or a link icon when it has no tree), and a ticket linked to nothing at all
-shows a small blue circle, so loose tickets are easy to spot.
+or a link icon when it has no tree); a ticket linked to nothing shows
+neither.
 
 **Parent and child** have a view of their own, since each ticket has at
 most one parent: `rite tree 7 --children` draws the hierarchy from the
