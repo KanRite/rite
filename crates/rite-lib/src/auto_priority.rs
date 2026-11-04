@@ -1,6 +1,11 @@
 //! Auto priority (ticket 215): a ticket is at least as urgent as the most
 //! urgent ticket that requires it, directly or down a chain, so the
 //! priorities set on the end goals flow down to the work they wait on.
+//! A child is one step below its parent (ticket 371: top, high, medium,
+//! low; a low parent gives nothing), so a goal's breakdown spreads across
+//! the priorities instead of all taking the goal's. Both rules are applied
+//! together until nothing changes, so a raised parent passes its raise
+//! down and a raised child lifts what it requires.
 //!
 //! Off unless the board's `auto-priority` setting is on. The result is
 //! written into `priority`, so everything that reads a priority sees it,
@@ -37,6 +42,9 @@ pub const DUE: &str = "due";
 /// against the board's limits (ticket 252).
 pub const TODO: &str = "todo";
 pub const DOING: &str = "doing";
+/// `priority-from` for a raise by the ticket's parent, before its id
+/// (`parent:003`, ticket 371), so it can't be read as a requirer's id.
+pub const PARENT: &str = "parent:";
 
 thread_local! {
     /// What reconcile changed since a front end last asked.
@@ -148,11 +156,13 @@ fn time_used(s: &Seen, today: Date) -> (Option<i64>, Option<i64>) {
     }
 }
 
-/// What raised a ticket: a ticket that requires it, its own due date, or
-/// the time it has spent in todo or doing against the board's limit.
+/// What raised a ticket: a ticket that requires it, its parent (ticket
+/// 371), its own due date, or the time it has spent in todo or doing
+/// against the board's limit.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Why {
     Requirer(usize),
+    Parent(usize),
     Due,
     Todo(i64, u32),
     Doing(i64, u32),
@@ -247,6 +257,26 @@ fn plan(board: &Board, today: Date) -> Result<(Vec<Seen>, Vec<Planned>)> {
         list.sort_by_key(|&i| seen[i].task.id);
         list.dedup();
     }
+    // Each ticket's parent (ticket 371): its `parent`, else the ticket
+    // whose `## Children` lists it, as `links::waiting_on` reads them.
+    let listed: Vec<Vec<String>> = seen
+        .iter()
+        .map(|s| crate::links::children_stems(&s.task))
+        .collect();
+    let parent: Vec<Option<usize>> = seen
+        .iter()
+        .enumerate()
+        .map(|(j, s)| {
+            let named = s.task.parent().and_then(|raw| {
+                let raw = raw.trim().trim_start_matches("[[");
+                let id: String = raw.chars().take_while(char::is_ascii_digit).collect();
+                index(&id)
+            });
+            named
+                .or_else(|| listed.iter().position(|c| c.contains(&s.task.stem)))
+                .filter(|&i| i != j)
+        })
+        .collect();
 
     let pinned = |s: &Seen| override_on && s.pinned;
     // Start from each ticket's own, raised by its due date (ticket 252);
@@ -301,6 +331,15 @@ fn plan(board: &Board, today: Date) -> Result<(Vec<Seen>, Vec<Planned>)> {
                     changed = true;
                 }
             }
+            // One step below its parent (ticket 371).
+            if let Some(p) = parent[j]
+                && !seen[p].done
+                && effective[p].saturating_sub(1) > effective[j]
+            {
+                effective[j] = effective[p] - 1;
+                source[j] = Some(Why::Parent(p));
+                changed = true;
+            }
         }
         if !changed {
             break;
@@ -321,6 +360,15 @@ fn plan(board: &Board, today: Date) -> Result<(Vec<Seen>, Vec<Planned>)> {
                         let line =
                             format!("{} raised to {to}: {by} requires it", s.task.id_display());
                         (by, line)
+                    }
+                    Why::Parent(i) => {
+                        let id = seen[i].task.id_display();
+                        let line = format!(
+                            "{} raised to {to}: child of {id} ({})",
+                            s.task.id_display(),
+                            PRIORITIES[effective[i]]
+                        );
+                        (format!("{PARENT}{id}"), line)
                     }
                     Why::Due => (
                         DUE.to_string(),
@@ -361,7 +409,7 @@ fn plan(board: &Board, today: Date) -> Result<(Vec<Seen>, Vec<Planned>)> {
             None if s.from.is_some() || s.priority != own => planned.push(Planned {
                 at: j,
                 line: format!(
-                    "{} back to {own}: nothing more urgent requires it{}",
+                    "{} back to {own}: nothing more urgent requires it or is its parent{}",
                     s.task.id_display(),
                     if s.due.is_some() {
                         ", and it isn't due soon"
@@ -458,6 +506,18 @@ pub fn note(board: &Board, task: &Task) -> Option<String> {
             s.due.as_deref().unwrap_or("soon")
         ));
     }
+    if let (Some(from), Some(own)) = (&s.from, &s.own)
+        && let Some(id) = from.strip_prefix(PARENT)
+    {
+        let theirs = board
+            .find(id)
+            .map(|p| format!(" ({})", p.priority()))
+            .unwrap_or_default();
+        return Some(format!(
+            "priority {}: raised by auto priority, child of {id}{theirs} (own: {own})",
+            s.priority
+        ));
+    }
     if let (Some(from), Some(own)) = (&s.from, &s.own) {
         return Some(format!(
             "priority {}: raised by auto priority, {from} requires it (own: {own})",
@@ -522,6 +582,17 @@ mod tests {
             &find(board, from),
             LinkType::Requires,
             &find(board, to),
+            false,
+            false,
+        )
+        .unwrap();
+    }
+
+    fn parent_of(board: &Board, parent: &str, child: &str) {
+        apply(
+            &find(board, parent),
+            LinkType::ParentOf,
+            &find(board, child),
             false,
             false,
         )
@@ -854,5 +925,130 @@ mod tests {
                 .any(|l| l.starts_with("auto priority left 002 alone")),
             "{lines:?}"
         );
+    }
+
+    #[test]
+    fn a_child_is_one_step_below_its_parent_and_requires_lifts_what_it_needs() {
+        // The shape of oberi-kitchen's board (ticket 371): a goal set high
+        // by hand, broken down into parts, with real blockers as requires.
+        let titles: Vec<String> = (1..=15).map(|n| format!("Ticket {n}")).collect();
+        let titles: Vec<&str> = titles.iter().map(String::as_str).collect();
+        let (_dir, board) = board_with(&titles);
+        for (parent, child) in [
+            ("003", "004"),
+            ("003", "007"),
+            ("007", "008"),
+            ("007", "009"),
+            ("010", "011"),
+            ("010", "012"),
+        ] {
+            parent_of(&board, parent, child);
+        }
+        for (from, to) in [
+            ("004", "005"),
+            ("004", "006"),
+            ("006", "013"),
+            ("006", "014"),
+            ("010", "001"),
+        ] {
+            requires(&board, from, to);
+        }
+        set(&board, "003", "high");
+        settings(&board, true, true);
+        let lines = reconcile(&board).unwrap();
+        let (low, medium, high) = ("low", "medium", "high");
+        assert_eq!(
+            priorities(&board),
+            [
+                low, low, high, medium, medium, medium, medium, low, low, low, low, low, medium,
+                medium, low
+            ],
+            "{lines:?}"
+        );
+        assert_eq!(
+            find(&board, "004").meta("priority-from").as_deref(),
+            Some("parent:003")
+        );
+        assert_eq!(
+            find(&board, "005").meta("priority-from").as_deref(),
+            Some("004")
+        );
+        assert!(
+            lines
+                .iter()
+                .any(|l| l == "004 raised to medium: child of 003 (high)"),
+            "{lines:?}"
+        );
+        assert_eq!(
+            note(&board, &find(&board, "007")).as_deref(),
+            Some("priority medium: raised by auto priority, child of 003 (high) (own: low)")
+        );
+
+        // The goal comes down: its breakdown goes back with it.
+        set(&board, "003", "medium");
+        reconcile(&board).unwrap();
+        assert_eq!(
+            priorities(&board),
+            [
+                low, low, medium, low, low, low, low, low, low, low, low, low, low, low, low
+            ]
+        );
+    }
+
+    #[test]
+    fn a_raised_parent_passes_its_raise_down_and_a_done_one_nothing() {
+        let (_dir, board) =
+            board_with(&["Goal", "Needed", "Part", "Part of part", "Finished", "Left"]);
+        set(&board, "001", "top");
+        requires(&board, "001", "002");
+        parent_of(&board, "002", "003");
+        parent_of(&board, "003", "004");
+        // A done parent pushes nothing.
+        set(&board, "005", "top");
+        for column in [Column::Todo, Column::Doing, Column::Done] {
+            board.move_task(&find(&board, "005"), column, true).unwrap();
+        }
+        parent_of(&board, "005", "006");
+        settings(&board, true, true);
+        reconcile(&board).unwrap();
+        // 002 is top through requires, so 003 is high and 004 medium.
+        assert_eq!(
+            priorities(&board),
+            ["top", "top", "high", "medium", "top", "low"]
+        );
+    }
+
+    #[test]
+    fn a_child_listed_only_under_its_parents_children_is_found() {
+        let (_dir, board) = board_with(&["Goal", "Part"]);
+        parent_of(&board, "001", "002");
+        // Take the child's `parent` away, leaving the parent's list.
+        let child = find(&board, "002");
+        let text = crate::eol::read(&child.path).unwrap();
+        std::fs::write(
+            &child.path,
+            crate::task::set_meta(&text, "parent", "\"\"").unwrap(),
+        )
+        .unwrap();
+        set(&board, "001", "high");
+        settings(&board, true, true);
+        reconcile(&board).unwrap();
+        assert_eq!(priorities(&board), ["high", "medium"]);
+    }
+
+    #[test]
+    fn a_pinned_child_keeps_its_priority_and_still_passes_it_down() {
+        let (_dir, board) = board_with(&["Goal", "Part", "Part of part"]);
+        parent_of(&board, "001", "002");
+        parent_of(&board, "002", "003");
+        set(&board, "001", "top");
+        settings(&board, true, true);
+        set_by_hand(&board, &find(&board, "002"), "low").unwrap();
+        reconcile(&board).unwrap();
+        // 002 is pinned low, so 003 takes nothing from it.
+        assert_eq!(priorities(&board), ["top", "low", "low"]);
+        set_by_hand(&board, &find(&board, "002"), "top").unwrap();
+        reconcile(&board).unwrap();
+        assert_eq!(priorities(&board), ["top", "top", "high"]);
     }
 }

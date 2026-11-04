@@ -338,7 +338,14 @@ in it to go to its card. Done children are left out until "Include done".
 **Auto priority** (on unless switched off: `rite auto-priority off`, or
 Admin → Auto priority) makes a ticket at least as urgent as the most urgent
 ticket that requires it, down a chain, so the priorities you set on your
-goals flow to the work they wait on. **It also raises a ticket as its due
+goals flow to the work they wait on. **A child is one step below its
+parent**: under a high goal its parts are medium and their parts low (top,
+high, medium, low; a low parent gives nothing). So link a goal's breakdown
+as parent and child, and keep requires for real blockers: a goal's whole
+tree then spreads across the priorities instead of all taking the goal's,
+and a blocker still gets the full priority of what it holds up. Both rules
+work together: a part raised by what requires it passes that on to its own
+parts, one step less. **It also raises a ticket as its due
 date nears**: a step for each quarter of the time from the day it was
 created to its due date, so medium from 25%, high from 50% and top from
 75%, and top once it's overdue. That passes on to what it requires.
@@ -356,8 +363,9 @@ A priority is written into the ticket, and nothing runs in the background,
 so a due date or a limit coming near is picked up by the next change anyone
 makes on the board, or within the hour by an open desktop board, which
 commits it as `priority: due dates`. A raised ticket records why
-(`priority-from`, `priority-own`; `rite show` says it, and its card shows
-`↑ high`), and switching it off puts them back. With **allow override** on
+(`priority-from`, `priority-own`; `priority-from: "parent:003"` for a
+child of 003; `rite show` says it, and its card shows `↑ high`), and
+switching it off puts them back. With **allow override** on
 (the default, `rite priority-override`), a priority you set by hand pins that
 ticket; `rite set 12 priority auto` (or "auto" in the editor) hands it back.
 With it off, a hand-set priority is only a floor.

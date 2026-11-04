@@ -656,10 +656,11 @@ enum Cmd {
         limit: u32,
     },
     /// Show or switch auto priority: priorities set from requires links,
-    /// due dates and time limits
+    /// parents, due dates and time limits
     ///
     /// When on, a ticket is at least as urgent as the most urgent ticket
-    /// that requires it, down a chain. It's raised as its due date nears, a
+    /// that requires it, down a chain, and a child is one step below its
+    /// parent (top, high, medium, low; a low parent gives nothing). It's raised as its due date nears, a
     /// step for each quarter of the time from its creation to its due date:
     /// medium from 25%, high from 50%, top from 75% (and once overdue). With time limits
     /// (`limits TODO DOING`, days; 0 is none), it's raised a step for each
@@ -2777,6 +2778,9 @@ fn cmd_auto_priority(board: &Board, action: Option<&str>, days: &[u32]) -> Resul
         let on = settings.auto_priority();
         println!("auto priority is {}", if on { "on" } else { "off" });
         println!(
+            "a ticket is at least as urgent as what requires it, and a child is one step below its parent"
+        );
+        println!(
             "due dates raise a ticket a step each quarter from its creation to its due date: medium, high, then top"
         );
         println!("{}", time_limits_line(settings.time_limits()));
@@ -2796,7 +2800,7 @@ fn cmd_auto_priority(board: &Board, action: Option<&str>, days: &[u32]) -> Resul
     println!(
         "{}",
         if on {
-            "auto priority is on: a ticket is at least as urgent as what requires it, and rises as its due date nears"
+            "auto priority is on: a ticket is at least as urgent as what requires it, a child is one step below its parent, and a ticket rises as its due date nears"
         } else {
             "auto priority is off: raised priorities are put back"
         }
