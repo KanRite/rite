@@ -1391,7 +1391,18 @@ off**, ticket 141) to
   that ticket first, words match title or file name); the Relationships
   panel shows a group per kind with a × on each, and both Add link and ×
   wait while the editor has unsaved edits, since they rewrite the file.
-  The command is `link_ticket`.
+  The command is `link_ticket`. **A ticket that doesn't exist yet**
+  (ticket 372): `rite_ui_model::link_enter` says what Enter does in the
+  search (a number or a whole title, case ignored, links that ticket; other
+  words `Create`; the open ticket's own title or an unknown number nothing),
+  and the list ends with a "＋ New draft … and link" row doing the same.
+  `create_linked_ticket` calls `transition::create_linked(board, from,
+  title, kind)`: a DRAFT ticket in the landing column with `from`'s
+  repository and branch type (neither when that repository isn't cloned
+  here, since `check_repository` would refuse it), linked through
+  `TicketFields.linked_from` in `create_ticket`'s one `new:` commit.
+  `links::can_link_to_new` refuses up front what `apply` would (`from`
+  already has a parent, or is already a clone), so nothing is written.
   **Every ticket linked to one, either way** (ticket 121):
   `links::linked(board, task)` reads the ticket's own links (`links::all`
   plus its `## Children`) and every other ticket's naming it, turned round

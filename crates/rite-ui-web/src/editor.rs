@@ -1475,7 +1475,8 @@ fn Relationships(
     dirty: RwSignal<bool>,
 ) -> impl IntoView {
     use rite_ui_model::{
-        LINK_KINDS, TicketSummary, link_candidates, link_label, split_link, ticket_number,
+        LINK_KINDS, LinkEnter, TicketSummary, link_candidates, link_enter, link_label, split_link,
+        ticket_number,
     };
     let ctx = Ctx::get();
     // Every ticket on this ticket's board: the columns and the epics.
@@ -1638,10 +1639,30 @@ fn Relationships(
             busy.set(false);
         });
     };
+    // A ticket that doesn't exist yet (ticket 372): a draft with the typed
+    // title, linked as the picked kind, in one commit.
+    let create = move |title: String| {
+        busy.set(true);
+        failure.set(None);
+        spawn_local(async move {
+            let (place, file) = (place.get_value(), file.get_value());
+            match api::create_linked_ticket(&place, &file, &title, &kind.get_untracked()).await {
+                Ok(report) => {
+                    ctx.report(report);
+                    query.set(String::new());
+                    ctx.reload();
+                }
+                Err(e) => failure.set(Some(e)),
+            }
+            busy.set(false);
+        });
+    };
     let found = move || {
         let me = ticket_number(&id.get());
         link_candidates(&tickets(), me, &query.get(), 8)
     };
+    // What Enter would do with what's typed.
+    let on_enter = move || link_enter(&tickets(), ticket_number(&id.get()), &query.get());
     let wait = move || dirty.get() || busy.get();
 
     let link = move |(t, unlink): (TicketSummary, Option<&'static str>)| {
@@ -1754,6 +1775,21 @@ fn Relationships(
                             class="min-w-48 flex-1 rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-600 dark:bg-slate-900"
                             prop:value=move || query.get()
                             on:input=move |ev| query.set(event_target_value(&ev))
+                            // Enter links the ticket of that number or title,
+                            // or makes a draft of that name (ticket 372).
+                            on:keydown=move |ev| {
+                                if ev.key() == "Enter" {
+                                    ev.prevent_default();
+                                    if wait() {
+                                        return;
+                                    }
+                                    match on_enter() {
+                                        LinkEnter::Link(t) => change_link(t.id, kind.get_untracked(), false),
+                                        LinkEnter::Create(title) => create(title),
+                                        LinkEnter::Nothing => {}
+                                    }
+                                }
+                            }
                         />
                     </div>
                     <ul class="flex flex-col gap-0.5" aria-label="Tickets found">
@@ -1781,9 +1817,34 @@ fn Relationships(
                                 .collect_view()
                         }}
                     </ul>
-                    <Show when=move || !query.with(|q| q.trim().is_empty()) && found().is_empty()>
-                        <p class="text-xs text-slate-500">"No ticket matches"</p>
-                    </Show>
+                    {move || match on_enter() {
+                        LinkEnter::Create(title) => {
+                            let label = format!("＋ New draft “{title}” and link");
+                            Some(
+                                view! {
+                                    <button
+                                        type="button"
+                                        class="self-start text-left text-sm text-accent-700 hover:underline disabled:cursor-default disabled:opacity-50 dark:text-accent-300"
+                                        disabled=wait
+                                        title=move || {
+                                            format!(
+                                                "Make a draft ticket of this name, linked as “{}” (Enter)",
+                                                link_label(&kind.get()),
+                                            )
+                                        }
+                                        on:click=move |_| create(title.clone())
+                                    >
+                                        {label}
+                                    </button>
+                                }
+                                    .into_any(),
+                            )
+                        }
+                        _ if !query.with(|q| q.trim().is_empty()) && found().is_empty() => {
+                            Some(view! { <p class="text-xs text-slate-500">"No ticket matches"</p> }.into_any())
+                        }
+                        _ => None,
+                    }}
                 </div>
             </Show>
             {move || {

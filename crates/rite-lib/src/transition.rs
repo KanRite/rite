@@ -497,6 +497,10 @@ pub struct TicketFields {
     /// Save and New, for a ticket found to depend on one that's missing),
     /// linked in the same commit.
     pub required_by: Vec<String>,
+    /// On creation, tickets that stand to the new one as the kind given
+    /// (ticket 372: riteui's Add link, `(ref, kind)`), linked both ways in
+    /// the same commit.
+    pub linked_from: Vec<(String, crate::links::LinkType)>,
 }
 
 /// Make a ticket the way `rite new` does: render it from the templates, write
@@ -506,6 +510,9 @@ pub fn create_ticket(board: &Board, fields: &TicketFields) -> Result<Outcome> {
     // Every ticket it requires must exist before anything is written.
     for reference in fields.requires.iter().chain(&fields.required_by) {
         board.find(reference)?;
+    }
+    for (reference, kind) in &fields.linked_from {
+        crate::links::can_link_to_new(&board.find(reference)?, *kind)?;
     }
     let templates = crate::templates::Templates::load(board)?;
     let draft = crate::create::Draft::prepare(
@@ -564,6 +571,12 @@ pub fn create_ticket(board: &Board, fields: &TicketFields) -> Result<Outcome> {
             false,
         )?);
     }
+    for (reference, kind) in &fields.linked_from {
+        let other = board.find(reference)?;
+        let new = crate::task::Task::from_path(&created.task.path, created.task.column)
+            .unwrap_or_else(|| created.task.clone());
+        required_lines.extend(crate::links::apply(&other, *kind, &new, false, false)?);
+    }
     // Read what the report and the commit message need before filing it under
     // an epic: inside `backlog/` that moves the file, after which `created.task`
     // points at a path that is gone and would read back as an empty title.
@@ -606,6 +619,37 @@ pub fn create_ticket(board: &Board, fields: &TicketFields) -> Result<Outcome> {
     }
     outcome.dest = Some(dest);
     Ok(outcome)
+}
+
+/// Make a draft ticket titled `title` and link `from` to it as `kind`, in
+/// one commit (ticket 372): riteui's Add link, for a ticket thought of while
+/// breaking the work down, before anyone has written it. It goes on
+/// `from`'s board, in its landing column, tagged DRAFT, with `from`'s
+/// repository and branch type, so it's ready once DRAFT comes off. A
+/// repository this machine hasn't cloned can't go on a new ticket, so then
+/// it takes neither, rather than refusing.
+pub fn create_linked(
+    board: &Board,
+    from: &Task,
+    title: &str,
+    kind: crate::links::LinkType,
+) -> Result<Outcome> {
+    let repository = from
+        .repository()
+        .filter(|r| crate::task::check_repository(&board.root, r).is_ok());
+    let branch_type = match repository {
+        Some(_) => from.branch_type().unwrap_or_default(),
+        None => String::new(),
+    };
+    let fields = TicketFields {
+        title: title.trim().to_string(),
+        repository,
+        branch_type,
+        tags: vec![crate::task::DRAFT_TAG.to_string()],
+        linked_from: vec![(from.id_display(), kind)],
+        ..TicketFields::default()
+    };
+    create_ticket(board, &fields)
 }
 
 /// Copy a ticket: a new backlog ticket with the original's title, body, tags,
@@ -1322,6 +1366,114 @@ mod tests {
         let shown = String::from_utf8_lossy(&out.stdout);
         assert!(shown.contains("001-checkout.md"), "{shown}");
         assert!(shown.contains("002-card-form.md"), "{shown}");
+    }
+
+    /// Ticket 372: Add link makes a ticket that doesn't exist yet, a draft
+    /// with the open ticket's repository and branch type, linked as the kind
+    /// picked, all in one commit.
+    #[test]
+    fn a_draft_made_from_add_link_is_linked_in_one_commit() {
+        use crate::links::LinkType;
+        // A project folder: the tickets repository, and `api` cloned beside it.
+        let base = tempfile::tempdir().unwrap();
+        let dir = base.path().join("shop-tickets");
+        for repo in [&dir, &base.path().join("api")] {
+            std::fs::create_dir_all(repo).unwrap();
+            for args in [
+                vec!["init", "-q"],
+                vec!["config", "user.email", "t@t.co"],
+                vec!["config", "user.name", "t"],
+                vec!["config", "commit.gpgsign", "false"],
+            ] {
+                std::process::Command::new("git")
+                    .arg("-C")
+                    .arg(repo)
+                    .args(args)
+                    .status()
+                    .unwrap();
+            }
+        }
+        std::fs::write(dir.join(".settings"), "sync = off\n").unwrap();
+        let board = empty_board(&dir);
+        create_ticket(
+            &board,
+            &TicketFields {
+                repository: Some("api".into()),
+                branch_type: "feature".into(),
+                ..fields("Barcode scan API")
+            },
+        )
+        .unwrap();
+        let api = board.find("001").unwrap();
+        create_linked(&board, &api, " Barcode infrastructure ", LinkType::Requires).unwrap();
+
+        let draft = board.find("002").unwrap();
+        assert_eq!(draft.title(), "Barcode infrastructure");
+        assert!(draft.is_draft());
+        assert_eq!(draft.column, board.workflow().landing());
+        assert_eq!(draft.repository().as_deref(), Some("api"));
+        assert_eq!(draft.branch_type().as_deref(), Some("feature"));
+        let ids: Vec<String> = crate::requires::required(&board, &board.find("001").unwrap())
+            .unwrap()
+            .iter()
+            .map(|t| t.id_display())
+            .collect();
+        assert_eq!(ids, ["002"]);
+        let git = |args: &[&str]| {
+            let out = std::process::Command::new("git")
+                .arg("-C")
+                .arg(&dir)
+                .args(args)
+                .output()
+                .unwrap();
+            String::from_utf8_lossy(&out.stdout).into_owned()
+        };
+        let shown = git(&["show", "--name-only", "--format=%s", "HEAD"]);
+        assert!(
+            shown.starts_with("new: 002 \"Barcode infrastructure\""),
+            "{shown}"
+        );
+        assert!(shown.contains("001-barcode-scan-api.md"), "{shown}");
+        assert!(shown.contains("002-barcode-infrastructure.md"), "{shown}");
+        assert_eq!(
+            git(&["status", "--porcelain", "--", "tasks/backlog/*.md"]),
+            "",
+            "no ticket left uncommitted"
+        );
+
+        // Child of a new ticket, for one that already has a parent: refused
+        // before anything is written.
+        let part = board.find("002").unwrap();
+        create_linked(&board, &part, "Another parent", LinkType::ParentOf).unwrap();
+        let err = create_linked(
+            &board,
+            &board.find("003").unwrap(),
+            "Second",
+            LinkType::ChildOf,
+        )
+        .err()
+        .map(|e| e.to_string())
+        .unwrap_or_default();
+        assert!(err.contains("already has parent 002"), "{err}");
+        assert!(board.find("004").is_err());
+        // A repository not cloned here goes on neither field.
+        let elsewhere = board.find("001").unwrap();
+        let text = crate::eol::read(&elsewhere.path).unwrap();
+        let text = crate::task::set_meta(&text, "repository", "\"web\"").unwrap();
+        std::fs::write(&elsewhere.path, text).unwrap();
+        create_linked(
+            &board,
+            &board.find("001").unwrap(),
+            "Web form",
+            LinkType::Requires,
+        )
+        .unwrap();
+        let web = board.find("004").unwrap();
+        assert_eq!(web.repository(), None);
+        assert_eq!(web.branch_type(), None);
+        // A title that can't be a ticket is refused too.
+        assert!(create_linked(&board, &api, "!!!", LinkType::RelatesTo).is_err());
+        assert!(board.find("005").is_err());
     }
 
     /// Ticket 227: Save and New makes the missing ticket already required

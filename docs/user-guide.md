@@ -296,6 +296,16 @@ same for scripts:
 
 The editor's Relationships panel shows the same, one-sided links included.
 
+**Add link** in that panel finds the ticket to link by number or title.
+**A ticket that doesn't exist yet can be made there**: type its title and
+press Enter (or click **＋ New draft "…" and link**), and a draft ticket of
+that name is made on the same board, in the backlog, and linked with the
+type you picked, in one commit. It takes the open ticket's repository and
+branch type when that repository is cloned on your machine, so it's ready
+to work once you take DRAFT off. Enter on a ticket's number or its whole
+title links that ticket instead, and a part of a title still lists the
+tickets that match, to click.
+
 `rite tree 12` draws a ticket's family, what it requires (solid) and what
 it relates to (dashed), saying where each ticket is and what's still
 waited on; `rite tree` draws every family on the board. Done tickets are

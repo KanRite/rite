@@ -1010,6 +1010,7 @@ fn create_ticket(args: &Value) -> Result<Reply> {
         priority: arg(args, "priority").unwrap_or_default(),
         requires: list(args, "requires").unwrap_or_default(),
         required_by: Vec::new(),
+        linked_from: Vec::new(),
     };
     let unknown = board_settings::unknown_assignees(board, &fields.assignees);
     let outcome = transition::create_ticket(board, &fields)?;

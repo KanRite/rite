@@ -453,6 +453,7 @@ async fn create_ticket(
             priority: String::new(),
             requires: Vec::new(),
             required_by,
+            linked_from: Vec::new(),
         };
         let outcome = transition::create_ticket(board, &fields).map_err(err)?;
         let name = if repo.is_empty() {
@@ -1232,6 +1233,28 @@ async fn link_ticket(
         .map_err(err)?;
         let verb = if remove { "unlink" } else { "link" };
         Ok(report_outcome(board, message(verb, &task), &outcome))
+    })
+    .await
+}
+
+/// Makes a draft ticket titled `title` and links the open ticket to it as
+/// `kind` (ticket 372: Add link, for a ticket that doesn't exist yet), in
+/// one commit.
+#[tauri::command]
+async fn create_linked_ticket(
+    state: Tauri<'_, AppState>,
+    place: Place,
+    file: String,
+    title: String,
+    kind: String,
+) -> Result<SyncReport> {
+    change(&state, move |p| {
+        let board = p.board(&place.repo)?;
+        let task = task_at(board, &place, &file)?;
+        let kind = rite_lib::links::LinkType::parse(&kind)
+            .ok_or_else(|| format!("unknown link type {kind:?}"))?;
+        let outcome = transition::create_linked(board, &task, &title, kind).map_err(err)?;
+        Ok(report_outcome(board, message("link", &task), &outcome))
     })
     .await
 }
@@ -3170,6 +3193,7 @@ pub fn run() {
             create_ticket,
             clone_ticket,
             link_ticket,
+            create_linked_ticket,
             retype_link,
             ticket_family,
             ticket_hierarchy,
@@ -4308,6 +4332,7 @@ mod tests {
             priority: String::new(),
             requires: Vec::new(),
             required_by: Vec::new(),
+            linked_from: Vec::new(),
         };
         let dest = transition::create_ticket(project.board("").unwrap(), &fields)
             .unwrap()
@@ -4343,6 +4368,7 @@ mod tests {
             priority: priority.into(),
             requires: Vec::new(),
             required_by: Vec::new(),
+            linked_from: Vec::new(),
         };
         let dest = transition::create_ticket(project.board("").unwrap(), &fields)
             .unwrap()

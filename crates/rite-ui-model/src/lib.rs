@@ -448,6 +448,44 @@ pub fn link_candidates(
         .collect()
 }
 
+/// What Enter does in the link search (ticket 372).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum LinkEnter {
+    /// Link this ticket: its number or its whole title was typed.
+    Link(Box<TicketSummary>),
+    /// No ticket has this title: make a draft with it and link that.
+    Create(String),
+    /// Nothing to do: an empty search, a number no ticket has, or the open
+    /// ticket's own title.
+    Nothing,
+}
+
+/// [`LinkEnter`] for `query`: a number (`12`, `#12`) links that ticket; a
+/// whole title, ignoring case and the spaces around it, links the ticket
+/// that has it; any other words make a new draft. `me` is never linked, and
+/// typing its own title makes nothing, since that would be a second ticket
+/// of the same name.
+pub fn link_enter(all: &[TicketSummary], me: Option<u32>, query: &str) -> LinkEnter {
+    let query = query.trim();
+    if query.is_empty() {
+        return LinkEnter::Nothing;
+    }
+    let digits = query.trim_start_matches('#');
+    if !digits.is_empty() && digits.chars().all(|c| c.is_ascii_digit()) {
+        let wanted = digits.parse::<u32>().ok();
+        return all
+            .iter()
+            .find(|t| ticket_number(&t.id) == wanted && wanted != me)
+            .map_or(LinkEnter::Nothing, |t| LinkEnter::Link(Box::new(t.clone())));
+    }
+    let same = |t: &&TicketSummary| t.title.trim().to_lowercase() == query.to_lowercase();
+    match all.iter().find(same) {
+        Some(t) if me.is_some() && ticket_number(&t.id) == me => LinkEnter::Nothing,
+        Some(t) => LinkEnter::Link(Box::new(t.clone())),
+        None => LinkEnter::Create(query.to_string()),
+    }
+}
+
 /// The ticket number a `parent`/`related` entry names: `042`, `"042"` or
 /// `[[042-some-title]]` all give 42.
 pub fn ticket_number(reference: &str) -> Option<u32> {
@@ -2172,6 +2210,33 @@ mod link_tests {
             ["002"]
         );
         assert!(link_candidates(&all, None, "nothing", 8).is_empty());
+    }
+
+    #[test]
+    fn enter_links_a_number_or_a_whole_title_and_makes_a_draft_otherwise() {
+        let all = [
+            ticket("003", "Admin scanner app"),
+            ticket("004", "Barcode scan API"),
+        ];
+        let link = |q: &str| match link_enter(&all, Some(3), q) {
+            LinkEnter::Link(t) => format!("link {}", t.id),
+            LinkEnter::Create(title) => format!("create {title}"),
+            LinkEnter::Nothing => "nothing".into(),
+        };
+        assert_eq!(link("4"), "link 004");
+        assert_eq!(link("#004"), "link 004");
+        assert_eq!(link("  barcode SCAN api "), "link 004");
+        // A part of a title is a new ticket: the list above still offers 004.
+        assert_eq!(link("Barcode"), "create Barcode");
+        assert_eq!(
+            link(" Data Collector account "),
+            "create Data Collector account"
+        );
+        // A number no ticket has, the open ticket, its title, or nothing.
+        assert_eq!(link("99"), "nothing");
+        assert_eq!(link("3"), "nothing");
+        assert_eq!(link("admin scanner app"), "nothing");
+        assert_eq!(link("   "), "nothing");
     }
 
     #[test]
