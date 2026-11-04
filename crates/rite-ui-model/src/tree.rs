@@ -11,10 +11,11 @@ use crate::epic::Place;
 #[serde(rename_all = "kebab-case")]
 pub enum Edge {
     Root,
-    /// The parent requires it: drawn solid.
+    /// The parent requires it.
     Requires,
-    /// Related to the parent: drawn dashed.
-    Related,
+    /// It requires the parent: what waits on the ticket asked about, drawn
+    /// above it (ticket 373).
+    WaitsOn,
     /// The parent's child, in the hierarchy (ticket 261).
     Child,
 }

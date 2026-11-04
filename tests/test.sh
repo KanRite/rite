@@ -1529,13 +1529,13 @@ assert "with the required ticket in the sprint, it starts" \
   bash -c "$(declare -f in_rq); rq='${rq}'; AMD='${AMD}'; in_rq set 1 points 2 >/dev/null && in_rq s1 1 >/dev/null \
     && in_rq group start s1 | grep -q 's1 started'"
 ( cd "${rq}" && RITE_NO_BRANCH=1 "${AMD}" new "Loner" >/dev/null && "${AMD}" new "Friend" >/dev/null \
-  && "${AMD}" link 3 5 >/dev/null )
+  && "${AMD}" link 5 3 --type requires >/dev/null )
 assert "rite tree of a ticket in a started sprint says the tree leaves it out" \
   bash -c "$(declare -f in_rq); rq='${rq}'; AMD='${AMD}'; in_rq tree 3 2>&1 | grep -q 'started sprint s1, which the tree leaves out'"
 assert "rite tree shows the started sprint's ticket as a stub where something links to it" \
-  bash -c "$(declare -f in_rq); rq='${rq}'; AMD='${AMD}'; in_rq tree 5 | grep -q '^└ ─ ─ 003 Top · in started sprint s1\$'"
+  bash -c "$(declare -f in_rq); rq='${rq}'; AMD='${AMD}'; in_rq tree 5 | grep -q '^└──── 003 Top · in started sprint s1\$'"
 assert "rite tree of a ticket with no links says so" \
-  bash -c "$(declare -f in_rq); rq='${rq}'; AMD='${AMD}'; in_rq tree 4 | grep -qx '004 requires nothing and has no related tickets'"
+  bash -c "$(declare -f in_rq); rq='${rq}'; AMD='${AMD}'; in_rq tree 4 | grep -qx '004 requires nothing and nothing requires it'"
 rm -rf "${rq}"
 tr="$(mktemp -d)"
 ( cd "${tr}" && git init -q && git config user.email t@t.co && git config user.name t \
@@ -1544,20 +1544,31 @@ tr="$(mktemp -d)"
   && "${AMD}" link 1 2 --type requires >/dev/null && "${AMD}" link 2 3 --type requires >/dev/null \
   && "${AMD}" link 1 4 >/dev/null \
   && for c in todo doing "done"; do RITE_NO_BRANCH=1 "${AMD}" "$c" 3 >/dev/null; done )
-assert "rite tree --done draws requires solid and related dashed, with where each is and what waits" \
-  bash -c "cd '${tr}' && [ \"\$('${AMD}' tree 4 --done)\" = \"\$(printf '%s\\n' \\
-    '001 Alpha · backlog  waits on 002' \\
-    '├──── 002 Beta · backlog' \\
-    '│     └──── 003 Gamma · done ✓' \\
-    '└ ─ ─ 004 Delta · backlog  ◀')\" ]"
+# Ticket 373: centred on the ticket, what waits on it above and what it
+# needs below; related links (1 and 4) aren't drawn.
+assert "rite tree --done centres on the ticket: what waits on it, it, what it needs" \
+  bash -c "cd '${tr}' && [ \"\$('${AMD}' tree 2 --done)\" = \"\$(printf '%s\\n' \\
+    'waits on 002' \\
+    '└──── 001 Alpha · backlog  waits on 002' \\
+    '' \\
+    '002 Beta · backlog  ◀' \\
+    '' \\
+    '002 needs' \\
+    '└──── 003 Gamma · done ✓')\" ]"
 assert "rite tree leaves done tickets out without --done" \
-  bash -c "cd '${tr}' && [ \"\$('${AMD}' tree 4)\" = \"\$(printf '%s\\n' \\
+  bash -c "cd '${tr}' && [ \"\$('${AMD}' tree 2)\" = \"\$(printf '%s\\n' \\
+    'waits on 002' \\
+    '└──── 001 Alpha · backlog  waits on 002' \\
+    '' \\
+    '002 Beta · backlog  ◀')\" ]"
+assert "rite tree doesn't draw related links, around a ticket or on the whole board" \
+  bash -c "cd '${tr}' && '${AMD}' tree 4 | grep -qx '004 requires nothing and nothing requires it' \
+    && [ \"\$('${AMD}' tree)\" = \"\$(printf '%s\\n' \\
     '001 Alpha · backlog  waits on 002' \\
-    '├──── 002 Beta · backlog' \\
-    '└ ─ ─ 004 Delta · backlog  ◀')\" ]"
+    '└──── 002 Beta · backlog')\" ]"
 assert "rite tree of a ticket linked only to done ones says they're done" \
-  bash -c "cd '${tr}' && '${AMD}' new Epsilon >/dev/null && '${AMD}' link 5 3 >/dev/null \
-    && '${AMD}' tree 5 | grep -qx 'Everything 005 is linked to is done (rite tree 005 --done shows it)'"
+  bash -c "cd '${tr}' && '${AMD}' new Epsilon >/dev/null && '${AMD}' link 5 3 --type requires >/dev/null \
+    && '${AMD}' tree 5 | grep -qx 'Everything 005 requires or is required by is done (rite tree 005 --done shows it)'"
 # Ticket 261: parent and child, from the top ancestor down.
 ( cd "${tr}" && "${AMD}" new Zeta --parent 1 >/dev/null && "${AMD}" new Eta --parent 6 >/dev/null )
 assert "rite tree --children draws the hierarchy from the top, the ticket marked" \

@@ -4139,14 +4139,14 @@ mod tests {
             "001",
             Edge::Root,
             vec![
-                node("002", Edge::Related, Vec::new()),
+                node("002", Edge::WaitsOn, Vec::new()),
                 // The hierarchy's edge (ticket 261).
                 node("003", Edge::Child, Vec::new()),
             ],
         );
         let json = serde_json::to_value(&lib).unwrap();
         let page: rite_ui_model::tree::TreeNode = serde_json::from_value(json.clone()).unwrap();
-        assert_eq!(page.children[0].edge, rite_ui_model::tree::Edge::Related);
+        assert_eq!(page.children[0].edge, rite_ui_model::tree::Edge::WaitsOn);
         assert_eq!(page.children[1].edge, rite_ui_model::tree::Edge::Child);
         assert_eq!(serde_json::to_value(&page).unwrap(), json);
     }

@@ -1444,14 +1444,22 @@ off**, ticket 141) to
   sprint_gaps`): the sprint column disables Start sprint and lists the
   gaps.
   **The tree** (`requires::family(board, around)`, `rite tree [<ref>]`):
-  one board's families, tickets joined by requires or related either
-  way, as serialisable `TreeNode`s (id, title, file, column, epic, place,
-  done, edge Root/Requires/Related, unmet, stub, seen, current). `Facts`
-  reads every ticket's links once. Roots: tickets nothing in the family
-  requires, those that require something first (so a ticket only related
-  to one hangs under it); a pure cycle starts at its lowest id. Each
-  ticket drawn once (`seen` back-references carry no marks); related
-  drawn once, under whichever end comes first. Tickets in a started
+  requires links only (related isn't drawn since ticket 373), as
+  serialisable `TreeNode`s (id, title, file, column, epic, place, done,
+  edge Root/Requires/WaitsOn/Child, unmet, stub, seen, current). `Facts`
+  reads every ticket's links once. **Around a ticket** (ticket 373,
+  `Facts::around`): one tree, the ticket as root (`current`), its
+  children first what requires it (`Edge::WaitsOn`, each with what
+  requires that, up: `grow_up`), then what it requires (`Edge::Requires`,
+  down: `grow`); nothing else those tickets link to. Waiters others wait
+  on come first (`Facts::waiting`), so the longest chain is drawn out and
+  the rest point back; empty when it has neither. render.rs and
+  `TreePanel` split the root's children by edge and draw "waits on N",
+  the ticket, then "N needs". **Without a ticket:** every family joined
+  by requires, top down. Roots: tickets nothing in the family requires,
+  those that require something first; a pure cycle starts at its lowest
+  id. Each ticket drawn once (`seen` back-references carry no marks).
+  Tickets in a started
   sprint (`!accepts_changes()`) are stubs, not expanded and not walked
   through; asking for one is refused. Parent/child aren't drawn here:
   they're `crates/rite-lib/src/hierarchy.rs` (ticket 261), the topmost
@@ -1466,17 +1474,18 @@ off**, ticket 141) to
   a family held together only by a done ticket comes apart), except the
   ticket asked about; `rite tree --done`, and the panel's "Include done"
   checkbox (off each time it opens). An empty answer only because of
-  done tickets says so. render.rs `tree`: `├──── ` solid,
-  `├ ─ ─ ` dashed (spaced so related stands out), both six wide; colour
-  and links only on a terminal.
+  done tickets says so. render.rs `tree`: `├──── ` six wide (the
+  `--children` hierarchy stays top-down: a root with `Edge::Child`
+  children isn't centred); colour and links only on a terminal.
   **riteui's tree:** the `ticket_family` command returns `family`'s nodes;
   `rite_ui_model::tree::TreeNode` mirrors them (rite-ui's tests check the
-  JSON agrees). A card with a family (`waiting::has_family`: requires,
-  required-by or related, either end), not in a started sprint, gets a
+  JSON agrees). A card with a family (`waiting::has_family`: requires
+  or required-by, either end; not related, ticket 373), not in a started
+  sprint, gets a
   tree button opening `Overlay::Tree { place, file }` (`tree.rs`'s
-  `TreePanel`): nested rows, a solid rule for requires and a dashed one
-  drawn as a repeating gradient (4 px dash, 6 px gap) for related, the
-  ticket it was opened from highlighted, waits-on marked, stubs greyed.
+  `TreePanel`, titled "Requires"): nested rows with a solid rule,
+  centred on the ticket as above, the ticket highlighted, waits-on
+  marked, stubs greyed.
   A click on a node goes to its card with `Ctx::show_card` (the board
   shown, `focus`/`focus_scroll`, its epic or sprint column opened, a
   folded column unfolded), which `open_ticket` now uses before opening

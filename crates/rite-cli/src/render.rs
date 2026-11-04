@@ -350,16 +350,37 @@ fn labels(node: &Node, root: bool) -> String {
     .join(" ")
 }
 
-/// `rite tree` (ticket 214): the requires tree, solid edges for what a
-/// ticket requires and dashed ones (spaced, to stand out) for related. On a
-/// terminal: ids link to their tickets, a started sprint's stub is dimmed
-/// and "waits on" is in colour. In a pipe: the same characters, no colour,
-/// and a stub says it's in a started sprint.
+/// `rite tree` (ticket 214): the requires tree. Around a ticket (ticket
+/// 373) it's centred on it: what waits on it, the ticket, then what it
+/// needs. On a terminal: ids link to their tickets, a started sprint's stub
+/// is dimmed and "waits on" is in colour. In a pipe: the same characters,
+/// no colour, and a stub says it's in a started sprint.
 pub fn tree(board: &Board, trees: &[rite_lib::requires::TreeNode]) {
+    use rite_lib::requires::Edge;
     let colour = rich();
     for (n, root) in trees.iter().enumerate() {
         if n > 0 {
             println!();
+        }
+        // `rite tree --children` shares this and stays top-down.
+        if root.current && !root.children.iter().any(|c| c.edge == Edge::Child) {
+            let (up, down): (Vec<_>, Vec<_>) = root
+                .children
+                .iter()
+                .cloned()
+                .partition(|c| c.edge == Edge::WaitsOn);
+            if !up.is_empty() {
+                println!("waits on {}", root.id);
+                tree_children(board, &up, "", colour);
+                println!();
+            }
+            println!("{}", tree_line(board, root, colour));
+            if !down.is_empty() {
+                println!();
+                println!("{} needs", root.id);
+                tree_children(board, &down, "", colour);
+            }
+            continue;
         }
         println!("{}", tree_line(board, root, colour));
         tree_children(board, &root.children, "", colour);
@@ -372,14 +393,12 @@ fn tree_children(
     prefix: &str,
     colour: bool,
 ) {
-    use rite_lib::requires::Edge;
     for (n, child) in children.iter().enumerate() {
         let last = n + 1 == children.len();
-        let branch = match (last, child.edge) {
-            (false, Edge::Related) => "├ ─ ─ ",
-            (true, Edge::Related) => "└ ─ ─ ",
-            (false, _) => "├──── ",
-            (true, _) => "└──── ",
+        let branch = if last {
+            "└──── "
+        } else {
+            "├──── "
         };
         println!("{prefix}{branch}{}", tree_line(board, child, colour));
         let deeper = format!("{prefix}{}", if last { "      " } else { "│     " });

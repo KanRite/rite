@@ -162,8 +162,9 @@ pub fn has_hierarchy<'a>(
     })
 }
 
-/// Whether a card has a family for the tree (ticket 214): it requires or
-/// relates to another, or another requires or relates to it.
+/// Whether a card has a family for the tree (ticket 214): it requires
+/// another, or another requires it. Related links aren't drawn in the tree
+/// (ticket 373), so they don't count.
 pub fn has_family<'a>(
     ticket: &TicketSummary,
     all: impl IntoIterator<Item = &'a TicketSummary>,
@@ -174,7 +175,7 @@ pub fn has_family<'a>(
             .filter_map(|e| split_link(e))
             .any(|(kind, _)| matches!(kind, "requires" | "required-by"))
     };
-    if tied(&ticket.links) || !ticket.related.is_empty() {
+    if tied(&ticket.links) {
         return true;
     }
     let me = number(&ticket.id);
@@ -182,12 +183,11 @@ pub fn has_family<'a>(
         && all.into_iter().any(|other| {
             other.repo == ticket.repo
                 && other.file != ticket.file
-                && (other.related.iter().any(|r| number(r) == me)
-                    || other
-                        .links
-                        .iter()
-                        .filter_map(|e| split_link(e))
-                        .any(|(k, i)| matches!(k, "requires" | "required-by") && number(i) == me))
+                && other
+                    .links
+                    .iter()
+                    .filter_map(|e| split_link(e))
+                    .any(|(k, i)| matches!(k, "requires" | "required-by") && number(i) == me)
         })
 }
 
@@ -331,20 +331,20 @@ mod tests {
     }
 
     #[test]
-    fn a_card_has_a_family_when_it_requires_relates_or_is_required() {
+    fn a_card_has_a_family_when_it_requires_or_is_required() {
         let mut a = card("001", Column::Todo);
         a.links = vec!["requires:002".into()];
         let b = card("002", Column::Todo); // required by 001: recorded on 001 only here
         let mut c = card("003", Column::Todo);
-        c.related = vec!["004".into()];
+        c.related = vec!["004".into()]; // only related: not drawn (ticket 373)
         let d = card("004", Column::Todo);
         let mut e = card("005", Column::Todo);
         e.links = vec!["supersedes:006".into()]; // not a requires or related tie
         let f = card("006", Column::Todo);
         let all = [&a, &b, &c, &d, &e, &f];
         let has = |t: &TicketSummary| has_family(t, all);
-        assert!(has(&a) && has(&b) && has(&c) && has(&d));
-        assert!(!has(&e) && !has(&f));
+        assert!(has(&a) && has(&b));
+        assert!(!has(&c) && !has(&d) && !has(&e) && !has(&f));
     }
 
     #[test]

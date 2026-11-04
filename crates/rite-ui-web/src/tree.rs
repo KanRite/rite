@@ -1,10 +1,10 @@
 //! The requires tree around a ticket (ticket 214), as `rite tree <ref>`
-//! draws it: what each ticket requires on a solid line, what it relates
-//! to on a dashed one (long dashes, wide gaps, so the two are easy to tell
-//! apart), where each is, and what it still waits on. A click on a ticket
-//! goes to its card. Done tickets are left out until "Include done" is
-//! ticked (ticket 217). With `children` it's parent and child instead
-//! (ticket 261): the ticket's ancestors and everything under it.
+//! draws it, centred on the ticket (ticket 373): what waits on it above,
+//! the ticket, then what it needs below, with where each is and what it
+//! still waits on. Related links aren't drawn. A click on a ticket goes to
+//! its card. Done tickets are left out until "Include done" is ticked
+//! (ticket 217). With `children` it's parent and child instead (ticket
+//! 261): the ticket's ancestors and everything under it.
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -13,20 +13,6 @@ use rite_ui_model::tree::{Edge, TreeNode};
 
 use crate::api;
 use crate::app::{Ctx, Modal, ModalClose};
-
-/// The line style for an edge: solid, or a dashed one drawn as a gradient
-/// (a CSS dashed border's dashes are short and close together).
-fn line(edge: Edge, vertical: bool) -> &'static str {
-    match (edge, vertical) {
-        (Edge::Related, true) => {
-            "background: repeating-linear-gradient(to bottom, currentColor 0 4px, transparent 4px 10px)"
-        }
-        (Edge::Related, false) => {
-            "background: repeating-linear-gradient(to right, currentColor 0 4px, transparent 4px 10px)"
-        }
-        _ => "background: currentColor",
-    }
-}
 
 #[component]
 pub fn TreePanel(place: Place, file: String, children: bool) -> impl IntoView {
@@ -50,19 +36,10 @@ pub fn TreePanel(place: Place, file: String, children: bool) -> impl IntoView {
     });
     view! {
         <Modal
-            title=if children { "Parent and children" } else { "Requires and related" }.to_string()
+            title=if children { "Parent and children" } else { "Requires" }.to_string()
             width="max-w-4xl"
         >
             <p class="text-xs text-slate-500">
-                {(!children)
-                    .then(|| {
-                        view! {
-                            <span class="mr-1 inline-block h-0.5 w-6 align-middle text-slate-500" style=line(Edge::Requires, false)></span>
-                            "requires"
-                            <span class="ml-4 mr-1 inline-block h-0.5 w-6 align-middle text-slate-500" style=line(Edge::Related, false)></span>
-                            <span class="mr-4">"related"</span>
-                        }
-                    })}
                 <span>"Click a ticket to go to its card."</span>
                 <label class="ml-4 inline-flex items-center gap-1">
                     <input
@@ -80,12 +57,15 @@ pub fn TreePanel(place: Place, file: String, children: bool) -> impl IntoView {
                     Some(Ok(list)) if list.is_empty() => {
                         let says = match (children, include_done.get_untracked()) {
                             (true, _) => "This ticket has no parent and no children.",
-                            (false, true) => "This ticket requires nothing and has no related tickets.",
+                            (false, true) => "This ticket requires nothing, and nothing requires it.",
                             (false, false) => {
-                                "Everything this ticket is linked to is done. Tick Include done to see it."
+                                "Everything this ticket requires or is required by is done. Tick Include done to see it."
                             }
                         };
                         view! { <p class="text-sm text-slate-500">{says}</p> }.into_any()
+                    }
+                    Some(Ok(mut list)) if !children && list.len() == 1 && list[0].current => {
+                        around(list.remove(0), repo.clone())
                     }
                     Some(Ok(list)) => {
                         let repo = repo.clone();
@@ -103,12 +83,46 @@ pub fn TreePanel(place: Place, file: String, children: bool) -> impl IntoView {
     }
 }
 
+/// The tree centred on the ticket (ticket 373): "Waits on" and what
+/// requires it, going up; the ticket; then "Needs" and what it requires,
+/// going down.
+fn around(mut ticket: TreeNode, repo: String) -> AnyView {
+    let (up, down): (Vec<TreeNode>, Vec<TreeNode>) = std::mem::take(&mut ticket.children)
+        .into_iter()
+        .partition(|c| c.edge == Edge::WaitsOn);
+    let id = ticket.id.clone();
+    let section = move |heading: String, nodes: Vec<TreeNode>, repo: String| {
+        let count = nodes.len();
+        (count > 0).then(|| {
+            view! {
+                <section class="flex flex-col">
+                    <h3 class="px-2 text-xs font-semibold uppercase text-slate-500">{heading}</h3>
+                    <ul class="mt-0.5 flex flex-col">
+                        {nodes
+                            .into_iter()
+                            .enumerate()
+                            .map(|(i, n)| node(n, repo.clone(), i + 1 == count))
+                            .collect_view()}
+                    </ul>
+                </section>
+            }
+        })
+    };
+    view! {
+        <div class="flex flex-col gap-3">
+            {section(format!("Waits on {id}"), up, repo.clone())}
+            <ul>{node(ticket, repo.clone(), false)}</ul>
+            {section(format!("{id} needs"), down, repo)}
+        </div>
+    }
+    .into_any()
+}
+
 /// One ticket and, below it, what hangs from it. `last` stops its line
 /// halfway down, as the last of its siblings.
 fn node(n: TreeNode, repo: String, last: bool) -> AnyView {
     let ctx = Ctx::get();
     let is_child = n.edge != Edge::Root;
-    let edge = n.edge;
     let target = ctx.board.with(|b| {
         let workflow = b.as_ref().map(|b| b.workflow.clone()).unwrap_or_default();
         n.place_in(&repo, &workflow)
@@ -139,13 +153,11 @@ fn node(n: TreeNode, repo: String, last: bool) -> AnyView {
                         // The line down from the parent, and across to this row.
                         <span
                             aria-hidden="true"
-                            class=format!("absolute left-2 top-0 w-0.5 text-slate-400 {}", if last { "h-3.5" } else { "h-full" })
-                            style=line(edge, true)
+                            class=format!("absolute left-2 top-0 w-0.5 bg-slate-400 {}", if last { "h-3.5" } else { "h-full" })
                         ></span>
                         <span
                             aria-hidden="true"
-                            class="absolute left-2 top-3.5 h-0.5 w-4 text-slate-400"
-                            style=line(edge, false)
+                            class="absolute left-2 top-3.5 h-0.5 w-4 bg-slate-400"
                         ></span>
                     }
                 })}
