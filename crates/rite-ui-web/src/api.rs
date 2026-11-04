@@ -236,6 +236,34 @@ struct LinkArgs<'a> {
     remove: bool,
 }
 
+#[derive(Serialize)]
+struct NewLinkedArgs<'a> {
+    place: &'a Place,
+    file: &'a str,
+    title: &'a str,
+    kind: &'a str,
+}
+
+/// Makes a draft ticket titled `title` and links the ticket at `file` to it
+/// as `kind` (ticket 372), in one commit.
+pub async fn create_linked_ticket(
+    place: &Place,
+    file: &str,
+    title: &str,
+    kind: &str,
+) -> Result<SyncReport, String> {
+    call(
+        "create_linked_ticket",
+        &NewLinkedArgs {
+            place,
+            file,
+            title,
+            kind,
+        },
+    )
+    .await
+}
+
 /// Links a ticket to another as `kind` (`requires`, `child-of`, …), or unlinks
 /// them; the other ticket records the opposite (ticket 207).
 pub async fn link_ticket(

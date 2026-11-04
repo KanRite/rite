@@ -225,6 +225,30 @@ fn preflight(from: &Task, kind: LinkType, to: &Task, one_way: bool) -> Result<()
     Ok(())
 }
 
+/// Whether `from` can be linked as `kind` to a ticket that doesn't exist
+/// yet (ticket 372), checked before that ticket is made: a new ticket has no
+/// parent and is no one's clone, so only `from`'s own end can refuse, as
+/// [`apply`] would.
+pub fn can_link_to_new(from: &Task, kind: LinkType) -> Result<()> {
+    if kind == LinkType::ChildOf
+        && let Some(existing) = from.parent()
+    {
+        bail!(
+            "{} already has parent {existing}; remove that first",
+            from.id_display()
+        );
+    }
+    if kind == LinkType::CloneOf
+        && let Some(existing) = from.clone_of()
+    {
+        bail!(
+            "{} is already a clone of {existing}; remove that first",
+            from.id_display()
+        );
+    }
+    Ok(())
+}
+
 /// Record (or, with `remove`, take away) on `task` that it stands to `other`
 /// as `kind`. Only `task`'s own file changes. Returns whether it did.
 fn write_end(task: &Task, kind: LinkType, other: &Task, remove: bool) -> Result<bool> {
