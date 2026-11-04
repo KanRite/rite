@@ -306,23 +306,34 @@ to work once you take DRAFT off. Enter on a ticket's number or its whole
 title links that ticket instead, and a part of a title still lists the
 tickets that match, to click.
 
-`rite tree 12` draws a ticket's family, what it requires (solid) and what
-it relates to (dashed), saying where each ticket is and what's still
-waited on; `rite tree` draws every family on the board. Done tickets are
-left out unless you add `--done` (`rite tree 12 --done`):
+`rite tree 12` draws the tree centred on ticket 12: above it, what waits
+on it (what requires it, then what requires those, up to the top); then
+the ticket; then what it needs, all the way down. Nothing else those
+tickets require is drawn, so the tree stays about 12. Each line says
+where the ticket is and what it's still waiting on. `rite tree` with no
+ticket draws every chain on the board, top down. Related links aren't
+drawn: the tree is only requires. Done tickets are left out unless you add
+`--done` (`rite tree 12 --done`):
 
 ```
-001 Alpha · backlog  waits on 002
-├──── 002 Beta · backlog
-│     └──── 003 Gamma · done ✓
-└ ─ ─ 004 Delta · backlog
+waits on 002
+└──── 001 Alpha · backlog  waits on 002
+
+002 Beta · backlog  ◀
+
+002 needs
+└──── 003 Gamma · done ✓
 ```
 
-That's `rite tree 4 --done`. Tickets in a sprint that has started aren't
-expanded: a link to one shows it as "in started sprint s12".
+That's `rite tree 2 --done`. Above the ticket, each ticket's branches are
+what waits on it, so with a longer chain the one leading furthest up is
+drawn out first, and a ticket met again points back with "↑ … (above)".
+Tickets in a sprint that has started aren't expanded: a link to one shows
+it as "in started sprint s12".
 
-On the desktop board, a card that requires or relates to others has a small
-tree button that opens the same tree, with that ticket highlighted; click
+On the desktop board, a card that requires others, or that others
+require, has a small tree button that opens the same tree, centred the
+same way, with that ticket highlighted; click
 any ticket in it to go to its card. Done tickets are left out until you
 tick "Include done". A sprint that can't start lists what's
 missing, each with "Show the tree".

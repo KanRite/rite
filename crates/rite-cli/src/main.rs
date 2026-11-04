@@ -543,22 +543,24 @@ enum Cmd {
         #[arg(long)]
         json: bool,
     },
-    /// Draw how tickets hang together: what each requires (solid) and
-    /// what it relates to (dashed)
+    /// Draw how tickets hang together through requires links
     ///
-    /// With a ticket, its family: every ticket joined to it by requires or
-    /// related. Without, every family on the board. Tickets in a started
-    /// sprint aren't expanded. Each line says where the ticket is, and
-    /// "waits on" names what it requires that isn't done. Done tickets are
-    /// left out unless --done. With --children, parent and child instead:
-    /// the ticket's ancestors and everything under it
+    /// With a ticket, centred on it: what waits on it (what requires it,
+    /// then what requires those) above, then the ticket, then what it
+    /// needs, all the way down. Nothing else those tickets link to is
+    /// drawn. Without, every family on the board joined by requires.
+    /// Related links aren't drawn. Tickets in a started sprint aren't
+    /// expanded. Each line says where the ticket is, and "waits on" names
+    /// what it requires that isn't done. Done tickets are left out unless
+    /// --done. With --children, parent and child instead: the ticket's
+    /// ancestors and everything under it
     Tree {
         #[arg(value_name = "REF")]
         task: Option<String>,
         /// Include done tickets
         #[arg(long)]
         done: bool,
-        /// Parent and child (the hierarchy) instead of requires and related
+        /// Parent and child (the hierarchy) instead of requires
         #[arg(long)]
         children: bool,
     },
@@ -1958,18 +1960,20 @@ fn run() -> Result<()> {
                 && !rite_lib::requires::family(&board, around.as_ref(), true)?.is_empty();
             match (&around, trees.is_empty()) {
                 (Some(t), true) if all_done => println!(
-                    "Everything {} is linked to is done (rite tree {} --done shows it)",
+                    "Everything {} requires or is required by is done (rite tree {} --done shows it)",
                     t.id_display(),
                     t.id_display()
                 ),
                 (Some(t), true) => println!(
-                    "{} requires nothing and has no related tickets",
+                    "{} requires nothing and nothing requires it",
                     t.id_display()
                 ),
                 (None, true) if all_done => {
-                    println!("Every ticket linked to another is done (rite tree --done shows them)")
+                    println!(
+                        "Every requires link here is to or from a done ticket (rite tree --done shows them)"
+                    )
                 }
-                (None, true) => println!("No ticket on this board requires or relates to another"),
+                (None, true) => println!("No ticket on this board requires another"),
                 _ => render::tree(&board, &trees),
             }
             Ok(())
