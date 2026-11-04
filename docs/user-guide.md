@@ -513,7 +513,10 @@ disagree.
   **top** priority and how many are **triage**. A TRIAGE ticket is always top, so each is counted
   in both. A kind with none isn't shown. It counts the whole project, so a
   search or a filter doesn't change it. The landing page shows the same
-  numbers on each project's row.
+  numbers on each project's row. To their left on the board, **auto: on**
+  in green or **auto: off** in grey says whether auto priority is on
+  (Admin → Auto priority), so you can tell at a glance whether a card's
+  priority may differ from the one in its file.
 - **Preferences**, your own settings on this machine, in
   `~/.config/kanrite/config`: the colour scheme (light, dark or the
   system's, with an accent colour: sky, indigo, teal or slate), the zoom, the board to open when riteui
