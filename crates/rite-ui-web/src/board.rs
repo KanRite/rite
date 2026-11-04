@@ -1384,14 +1384,8 @@ fn Card(ticket: TicketSummary) -> impl IntoView {
                             }
                                 .into_any()
                         } else {
-                            view! {
-                                <span
-                                    class="mt-1 inline-block h-2 w-2 shrink-0 self-start rounded-full border-2 border-sky-500"
-                                    title="No relationships: it isn't linked to any other ticket"
-                                    aria-label="No relationships"
-                                ></span>
-                            }
-                                .into_any()
+                            // Not linked: nothing (ticket 369; it was a blue dot).
+                            ().into_any()
                         }
                     }
                 }
