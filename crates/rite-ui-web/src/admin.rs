@@ -1299,7 +1299,7 @@ fn PriorityAdmin() -> impl IntoView {
         <section class="flex flex-col gap-2">
             <h3 class="text-sm font-semibold">"Auto priority"</h3>
             <p class="text-xs text-slate-500">
-                "A ticket becomes at least as urgent as the most urgent ticket that requires it, down a chain, so the priorities on your goals flow to the work they wait on, and it rises as its due date nears. Raised tickets say why, and switching it off puts them back."
+                "A ticket becomes at least as urgent as the most urgent ticket that requires it, down a chain, so the priorities on your goals flow to the work they wait on; a child is one step below its parent; and it rises as its due date nears. Raised tickets say why, and switching it off puts them back."
             </p>
             <label class="flex items-center gap-2 text-sm font-semibold">
                 <input
@@ -1310,7 +1310,7 @@ fn PriorityAdmin() -> impl IntoView {
                         spawn_local(async move { apply(api::set_auto_priority(on).await) });
                     }
                 />
-                "Set priorities from requires links, due dates and time limits"
+                "Set priorities from requires and parent links, due dates and time limits"
             </label>
             <p class="text-xs text-slate-500">
                 "A ticket with a due date rises a step each quarter of the time from its creation to its due date: medium from 25%, high from 50%, top from 75%, so top once it's overdue."

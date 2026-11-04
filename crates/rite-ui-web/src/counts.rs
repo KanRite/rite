@@ -56,7 +56,9 @@ pub fn counts_view(counts: TicketCounts) -> impl IntoView {
 
 /// In the board's header, from the board the page already holds: the whole
 /// project, so a search or a filter narrowing the cards doesn't change it.
-/// Only while a board is on screen.
+/// Only while a board is on screen. To their left, whether auto priority is
+/// on (ticket 367), so a card's priority differing from its file's is
+/// explained at a glance.
 #[component]
 pub fn BoardCounts() -> impl IntoView {
     let ctx = Ctx::get();
@@ -64,8 +66,37 @@ pub fn BoardCounts() -> impl IntoView {
         if ctx.view.get() != View::Board {
             return None;
         }
-        ctx.board
-            .with(|b| b.as_ref().map(|b| counts_view(b.counts())))
+        ctx.board.with(|b| {
+            b.as_ref().map(|b| {
+                view! {
+                    <span class="flex shrink-0 items-baseline gap-3">
+                        {auto_view(b.auto_priority)}
+                        {counts_view(b.counts())}
+                    </span>
+                }
+            })
+        })
+    }
+}
+
+/// `auto: on` in green or `auto: off` in grey; the words say which, so the
+/// colour is never the only sign.
+fn auto_view(on: bool) -> impl IntoView {
+    let (text, class) = if on {
+        (
+            "auto: on",
+            "font-semibold text-green-700 dark:text-green-400",
+        )
+    } else {
+        ("auto: off", "text-slate-500 dark:text-slate-400")
+    };
+    view! {
+        <span
+            class=format!("whitespace-nowrap text-xs {class}")
+            title="Auto priority: priorities set from requires links, parents, due dates and time limits. Switched in Admin → Auto priority"
+        >
+            {text}
+        </span>
     }
 }
 
