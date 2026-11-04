@@ -1486,9 +1486,14 @@ off**, ticket 141) to
   on) and `priority-override` (on unless off)
   in the tickets `.settings`, read per board. When on, a ticket not done
   is at least as urgent as the most urgent not-done ticket that requires
-  it, down a chain (repeated to a fixpoint; three steps, so cycles end).
-  Written into `priority`, a raise recorded as `priority-from` (the
-  requirer) and `priority-own` (its own before), `Task::write_priority`
+  it, down a chain, and **a child is one step below its parent** (ticket
+  371: the child's `parent`, else the ticket whose `## Children` lists it;
+  a low or done parent gives nothing), both rules in the one loop to a
+  fixpoint (priorities only rise, so it ends, cycles included). That
+  spreads a goal's breakdown (parent/child) across the priorities while a
+  blocker (requires) takes the full priority it holds up. Written into
+  `priority`, a raise recorded as `priority-from` (the requirer's id,
+  `parent:<id>` for a parent, `due`, `todo`, `doing`) and `priority-own` (its own before), `Task::write_priority`
   writing all of them in one checked write. `reconcile(board)` runs in
   `transition::settle_priorities`, called by `with_auto_commit` after the
   change and before the commit (and by `create_ticket` and `cmd_new`), so

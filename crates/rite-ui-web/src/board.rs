@@ -1480,6 +1480,12 @@ fn Card(ticket: TicketSummary) -> impl IntoView {
                                 format!("↑ {priority}"),
                                 format!("{priority}, raised by auto priority: due {due_for_priority}"),
                             )
+                        } else if let Some(parent) = priority_from.strip_prefix("parent:") {
+                            // One step below its parent (ticket 371).
+                            (
+                                format!("↑ {priority}"),
+                                format!("{priority}, raised by auto priority: a child of {parent}"),
+                            )
                         } else {
                             (
                                 format!("↑ {priority}"),
