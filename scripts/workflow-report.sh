@@ -9,7 +9,9 @@
 #   passed  close that issue, saying a later run passed.
 #
 # The issue reaches the board as a TRIAGE ticket through rite's GitHub issue
-# import, which is how a red workflow gets noticed. It says nothing about a
+# import, which is how a red workflow gets noticed. Each opened, commented or
+# closed issue is also sent as a push notification (ticket 321,
+# scripts/ntfy-notify.sh, which takes NTFY_TOPIC). It says nothing about a
 # workflow that never runs: nothing runs then, so nothing can report it.
 #
 # What it is told comes in the environment, never on a command line it builds:
@@ -48,6 +50,11 @@ open_issue() {
     --jq '.[] | select(.title == $ENV.TITLE) | .number' | head -n 1
 }
 
+# Sends a push notification, or says what it would send.
+notify() {
+  act "$(dirname "$0")/ntfy-notify.sh" "$@"
+}
+
 number="$(open_issue)"
 
 case "${MODE}" in
@@ -55,19 +62,26 @@ case "${MODE}" in
     if [ -n "${number}" ]; then
       act gh issue comment "${number}" --repo "${REPO}" \
         --body "Failed again: ${RUN_URL}"
+      notify "${WORKFLOW} failed again on ${BRANCH}" \
+        "Started by ${EVENT}. Issue: https://github.com/${REPO}/issues/${number}" x "${RUN_URL}"
     else
       body="The ${WORKFLOW} workflow failed on ${BRANCH} (started by ${EVENT}): ${RUN_URL}
 
 Read the log with \`gh run view --log-failed\` on that run.
 
 This issue closes itself when a later run of ${WORKFLOW} on ${BRANCH} passes. It was raised by workflow-failures.yml, which does this for every workflow that runs on main, on a schedule or for a release."
-      act gh issue create --repo "${REPO}" --title "${TITLE}" --body "${body}"
+      issue="$(act gh issue create --repo "${REPO}" --title "${TITLE}" --body "${body}")"
+      printf '%s\n' "${issue}"
+      notify "${WORKFLOW} failed on ${BRANCH}" \
+        "Started by ${EVENT}. Issue: ${issue}" x "${RUN_URL}"
     fi
     ;;
   passed)
     if [ -n "${number}" ]; then
       act gh issue close "${number}" --repo "${REPO}" \
         --comment "A later run passed: ${RUN_URL}"
+      notify "${WORKFLOW} passes again on ${BRANCH}" \
+        "Closed issue: https://github.com/${REPO}/issues/${number}" white_check_mark "${RUN_URL}"
     else
       printf 'no open issue to close\n'
     fi

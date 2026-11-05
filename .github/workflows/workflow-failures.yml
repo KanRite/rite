@@ -20,7 +20,13 @@ name: Workflow failures
 # self-test (main)" through the same script and token as a real failure. Run
 # it after ISSUE_GENERATOR_TOKEN is renewed: when the token lapses this job
 # fails, and nothing reports the reporter. The issue becomes a TRIAGE ticket
-# like any other; mark it done once it's seen.
+# like any other; mark it done once it's seen. It sends a notification too,
+# and fails if it can't, so it also checks NTFY_TOPIC.
+#
+# ntfy (ticket 321): each issue opened, commented on or closed is also sent as
+# a push notification, to the topic in the secret NTFY_TOPIC. On ntfy.sh a
+# topic is its own password, so it's long, random and never printed. A real
+# report without it, or that ntfy refuses, warns and still raises the issue.
 
 on:
   workflow_run:
@@ -73,6 +79,7 @@ jobs:
       - name: Open or close the issue for ${{ github.event.workflow_run.name }}
         env:
           GH_TOKEN: ${{ secrets.ISSUE_GENERATOR_TOKEN }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           WORKFLOW: ${{ github.event.workflow_run.name }}
           BRANCH: ${{ github.event.workflow_run.head_branch }}
           EVENT: ${{ github.event.workflow_run.event }}
@@ -97,6 +104,8 @@ jobs:
       - name: Self-test, ${{ inputs.result }}
         env:
           GH_TOKEN: ${{ secrets.ISSUE_GENERATOR_TOKEN }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          NTFY_STRICT: "1"
           WORKFLOW: self-test
           BRANCH: ${{ github.ref_name }}
           EVENT: workflow_dispatch
