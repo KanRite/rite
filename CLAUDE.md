@@ -729,12 +729,17 @@ redundant. Their history is in git if it is ever wanted again.
   so a Linux-only pass on main can't close a Windows or macOS failure;
   written with the repository secret `ISSUE_GENERATOR_TOKEN`),
   which rite's issue import turns into a TRIAGE ticket, and a later pass closes it.
+  Each issue opened, commented on or closed is also sent as a push notification
+  through ntfy.sh (ticket 321, `scripts/ntfy-notify.sh`). The topic is its own
+  password, so it's long, random and kept in the secret `NTFY_TOPIC`. Without it,
+  or if ntfy refuses, a report warns and still raises the issue.
   Not pull requests or Dependabot's branches. `workflow_run` needs every workflow
   named, so `scripts/check-failure-reporter.sh` (the `shell` job) fails when a new
   workflow isn't in the list. A workflow that never runs can't report itself.
   **Self-test** (`gh workflow run workflow-failures.yml -f result=failed`, then
   `-f result=passed`): opens and closes "Workflow failed: self-test (main)"
   with the same script and token, so a lapsed `ISSUE_GENERATOR_TOKEN` shows.
+  It also sends both notifications and fails if it can't, so it checks `NTFY_TOPIC` too.
 - `.github/dependabot.yml` and the **Dependabot gate** (tickets 246,
   247; `.github/workflows/dependabot-gate.yml`, `scripts/dependabot-gate.sh`):
   weekly GitHub Actions and Cargo updates (Cargo's minor and patch grouped),
