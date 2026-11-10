@@ -154,10 +154,12 @@ impl Task {
 
     /// Look up a frontmatter key. Tolerant by design: task files are rendered
     /// from user-editable templates, so this reads the first `key: value` line
-    /// rather than pretending to be a YAML parser.
+    /// rather than pretending to be a YAML parser. A double-quoted value has
+    /// its escapes undone (ticket 379), so a title written as `"Say \"hi\""`
+    /// reads back as `Say "hi"`.
     pub fn meta(&self, key: &str) -> Option<String> {
         let text = crate::eol::read(&self.path).ok()?;
-        meta_in(&text, key).map(str::to_string)
+        meta_text_in(&text, key)
     }
 
     /// Fingerprint the ticket's current on-disk content. Call this right
@@ -1417,6 +1419,20 @@ pub fn split_body(text: &str) -> Option<(&str, &str)> {
 }
 
 pub(crate) fn meta_in<'a>(text: &'a str, key: &str) -> Option<&'a str> {
+    raw_meta_in(text, key).map(unquote)
+}
+
+/// [`meta_in`], with a double-quoted value's escapes undone (ticket 379).
+/// Values are written double-quoted and escaped, by the templates' `yaml`
+/// filter and by `{:?}`; read back with [`unquote`] alone, a title holding
+/// `"` kept its backslashes in commit messages, the board and the MCP
+/// server's answers. Use this for text people read: titles, names.
+pub(crate) fn meta_text_in(text: &str, key: &str) -> Option<String> {
+    raw_meta_in(text, key).map(unescape)
+}
+
+/// The value of the first `key: value` line, trimmed, quotes and all.
+fn raw_meta_in<'a>(text: &'a str, key: &str) -> Option<&'a str> {
     let mut lines = text.lines();
     let fenced = text.starts_with("---");
     if fenced {
@@ -1429,10 +1445,54 @@ pub(crate) fn meta_in<'a>(text: &'a str, key: &str) -> Option<&'a str> {
         if let Some(rest) = line.strip_prefix(key)
             && let Some(value) = rest.strip_prefix(':')
         {
-            return Some(unquote(value.trim()));
+            return Some(value.trim());
         }
     }
     None
+}
+
+/// A frontmatter value as text: a double-quoted one with its quotes off and
+/// its escapes undone, anything else as [`unquote`] gives it. Undoes what
+/// the writers produce: `\"`, `\\`, `\n`, `\t`, `\r` and `\u{…}` (Rust's
+/// `{:?}`). An escape it doesn't know is kept as written.
+pub(crate) fn unescape(value: &str) -> String {
+    let Some(inner) = value.strip_prefix('"').and_then(|v| v.strip_suffix('"')) else {
+        return unquote(value).to_string();
+    };
+    let mut out = String::with_capacity(inner.len());
+    let mut chars = inner.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch != '\\' {
+            out.push(ch);
+            continue;
+        }
+        match chars.next() {
+            Some('"') => out.push('"'),
+            Some('\\') => out.push('\\'),
+            Some('n') => out.push('\n'),
+            Some('t') => out.push('\t'),
+            Some('r') => out.push('\r'),
+            Some('\'') => out.push('\''),
+            Some('u') if chars.peek() == Some(&'{') => {
+                chars.next();
+                let hex: String = chars.by_ref().take_while(|c| *c != '}').collect();
+                match u32::from_str_radix(&hex, 16).ok().and_then(char::from_u32) {
+                    Some(decoded) => out.push(decoded),
+                    None => {
+                        out.push_str("\\u{");
+                        out.push_str(&hex);
+                        out.push('}');
+                    }
+                }
+            }
+            Some(other) => {
+                out.push('\\');
+                out.push(other);
+            }
+            None => out.push('\\'),
+        }
+    }
+    out
 }
 
 pub(crate) fn unquote(value: &str) -> &str {
@@ -2189,6 +2249,32 @@ mod tests {
         assert_eq!(unquote("'First task'"), "First task");
         assert_eq!(unquote("[x,y]"), "[x,y]");
         assert_eq!(unquote("\""), "\"");
+    }
+
+    #[test]
+    fn unescape_undoes_what_the_writers_escape() {
+        // Ticket 379: the yaml filter's and `{:?}`'s escapes.
+        assert_eq!(unescape(r#""Say \"hi\"""#), r#"Say "hi""#);
+        assert_eq!(unescape(r#""C:\\temp""#), r"C:\temp");
+        assert_eq!(unescape(r#""a\nb\tc""#), "a\nb\tc");
+        assert_eq!(unescape(r#""bell \u{7}""#), "bell \u{7}");
+        // Not double-quoted: as unquote leaves it.
+        assert_eq!(unescape("'it''s'"), "it''s");
+        assert_eq!(unescape("bare"), "bare");
+        assert_eq!(unescape("\""), "\"");
+        // An escape it doesn't know is kept as written.
+        assert_eq!(unescape(r#""\q""#), r"\q");
+    }
+
+    #[test]
+    fn a_title_with_quotes_round_trips() {
+        let title = r#"Pushes print "branch 'main' set up" every time: odd \ case"#;
+        // How set_title writes it, and how the yaml filter does.
+        let filtered = crate::templates::yaml_filter(minijinja::Value::from(title));
+        for written in [format!("{title:?}"), filtered] {
+            let text = format!("---\nid: \"001\"\ntitle: {written}\n---\n");
+            assert_eq!(meta_text_in(&text, "title").as_deref(), Some(title));
+        }
     }
 
     // -- Leases (docs/adr/0007-concurrency-and-locking.md) ------------------
