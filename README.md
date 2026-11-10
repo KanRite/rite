@@ -135,6 +135,8 @@ a solo developer without it.
 - **Import** tickets from another board and documents from a folder.
 - **`rite recover`** brings back deleted or abandoned tickets; **`rite
   renumber`** fixes duplicate numbers.
+- **`rite doctor`** checks this machine's setup (a project riteui can't
+  show, leftover settings, an old MCP entry) and names the fix.
 
 ### The desktop board
 
