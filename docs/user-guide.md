@@ -638,6 +638,8 @@ board without opening a window. `--no-input` makes it never prompt.
 
 ```bash
 rite new "Checkout revamp" --no-input   # lands in backlog/
+rite new "Pay by card" --body-file notes.md --epic checkout --priority high --points 3
+                                        # body, epic, priority and points in one commit
 rite set 001 points 5                   # points, epic, order, title, priority
 rite set 001 priority high              # low (the default), medium or high
 rite group epic checkout --description "the checkout flow"
@@ -653,6 +655,11 @@ rite group close sprint-1               # end it: read-only, and a report in the
 rite group delete payments              # once every ticket in it is done (or moved out)
 rite todo 001 --no-branch && rite doing 001 && rite done 001
 ```
+
+`--body-file` takes everything below the frontmatter from a file, or from
+stdin with `-`, so a script needs no editor. A bad points or priority value,
+or an epic that isn't there, is refused before anything is written. `-e`
+needs a terminal; without one rite says it was ignored.
 
 `--to todo` moves only the tickets still in that epic or sprint's backlog
 folder, in one commit; each keeps the group's name, so sent back from todo
