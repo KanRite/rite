@@ -699,6 +699,37 @@ assert "a board inside its code repository is unaffected" \
 rm -rf "${pl}"
 rm -rf "${tr}"
 
+echo "rite set files under an epic with other fields (ticket 383):"
+st="$(mktemp -d)"
+in_st() { (cd "${st}" && "${AMD}" "$@"); }
+git -C "${st}" init -q && git -C "${st}" config user.email t@t.co && git -C "${st}" config user.name t
+( cd "${st}" && RITE_YES=1 "${AMD}" init sets --local-only >/dev/null 2>&1 \
+  && git add -A && git commit -qm init && "${AMD}" group epic launch >/dev/null 2>&1 \
+  && "${AMD}" new 'Filed and ranked' --no-edit >/dev/null 2>&1 \
+  && "${AMD}" new 'Moved by hand' --no-edit >/dev/null 2>&1 )
+assert "rite set epic then priority files and ranks it in one commit, leaving nothing staged" \
+  bash -c "$(declare -f in_st); st='${st}'; AMD='${AMD}'; \
+    before=\"\$(git -C '${st}' rev-list --count HEAD)\" \
+    && in_st set 1 epic launch priority high >/dev/null 2>&1 \
+    && f='${st}'/tasks/backlog/launch/001-filed-and-ranked.md && test -f \"\$f\" \
+    && grep -q '^priority: \"high\"' \"\$f\" \
+    && [ \"\$(git -C '${st}' rev-list --count HEAD)\" = \"\$((before + 1))\" ] \
+    && [ -z \"\$(git -C '${st}' status --porcelain)\" ] \
+    && ! git -C '${st}' cat-file -e HEAD:tasks/backlog/001-filed-and-ranked.md 2>/dev/null"
+assert "...and with priority first, the same" \
+  bash -c "$(declare -f in_st); st='${st}'; AMD='${AMD}'; \
+    in_st set 1 epic '' >/dev/null 2>&1 && in_st set 1 priority low epic launch >/dev/null 2>&1 \
+    && grep -q '^priority: \"low\"' '${st}'/tasks/backlog/launch/001-filed-and-ranked.md \
+    && [ -z \"\$(git -C '${st}' status --porcelain)\" ]"
+assert "a commit after a rename left staged takes both sides of it, never half" \
+  bash -c "$(declare -f in_st); st='${st}'; AMD='${AMD}'; \
+    git -C '${st}' mv tasks/backlog/002-moved-by-hand.md tasks/backlog/launch/002-moved-by-hand.md \
+    && in_st set 2 priority medium >/dev/null 2>&1 \
+    && [ -z \"\$(git -C '${st}' status --porcelain)\" ] \
+    && ! git -C '${st}' cat-file -e HEAD:tasks/backlog/002-moved-by-hand.md 2>/dev/null \
+    && git -C '${st}' cat-file -e HEAD:tasks/backlog/launch/002-moved-by-hand.md"
+rm -rf "${st}"
+
 echo "register in a folder of several projects (ticket 103):"
 # acme (current) and beta side by side, and a code repository, beta-app,
 # that belongs to beta. From inside beta-app, a plain `rite register` would
@@ -3058,6 +3089,26 @@ assert "an archived project's tickets can't be changed through rite mcp" \
   bash -c "cd '${mcp}/board' && echo 'archived = on' >> .settings && out=\$(printf '%s\\n' '{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"create_ticket\",\"arguments\":{\"title\":\"No\"}}}' | '${AMD}' mcp 2>/dev/null) && printf '%s' \"\$out\" | grep -q '\"isError\":true' && printf '%s' \"\$out\" | grep -q archived"
 rm -rf "${mcp}"
 
+echo "a title with double quotes reads back without backslashes (ticket 379):"
+qt="$(mktemp -d)"
+(
+  cd "${qt}" && git init -q && git config user.email t@t.co && git config user.name Tess
+  RITE_YES=1 "${AMD}" init quotes --local-only >/dev/null && git add -A && git commit -q -m init
+  "${AMD}" new 'Say "hi" to C:\temp' --no-edit >/dev/null 2>&1
+  "${AMD}" board --plain > "${qt}/board.txt" 2>/dev/null
+  rpc 1 create_ticket '{"title":"Print \"done\" twice"}' | XDG_STATE_HOME="${qt}/state" "${AMD}" mcp > "${qt}/mcp.out" 2>/dev/null
+)
+assert "the file keeps the escapes YAML needs" \
+  grep -qF 'title: "Say \"hi\" to C:\\temp"' "${qt}"/tasks/backlog/001-say-hi-to-c-temp.md
+assert "the commit message has the title as typed" \
+  sh -c 'git -C "$1" log --format=%s | grep -qxF "$2"' _ "${qt}" 'new: 001 "Say "hi" to C:\temp"'
+assert "rite board shows it as typed" \
+  grep -qF '[001] Say "hi" to C:\temp' "${qt}/board.txt"
+assert "the MCP server's answer has it as typed, with JSON's escapes only" \
+  grep -qF '"title":"Print \"done\" twice"' "${qt}/mcp.out"
+assert "...and no YAML backslashes left in it" \
+  sh -c '! grep -qF "\\\\" "$1"' _ "${qt}/mcp.out"
+rm -rf "${qt}"
 echo "doctor:"
 # Its own machine: config, HOME (for the MCP check) and a TMPDIR the projects
 # aren't under, since boards under the temporary folder are scratch to it
