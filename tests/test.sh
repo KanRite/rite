@@ -1901,6 +1901,15 @@ assert "an empty backlog says so" \
   bash -c "cd '${work}' && '${AMD}' group list | grep -q 'no epics or sprints'"
 assert "group epic creates one" \
   bash -c "cd '${work}' && '${AMD}' group epic checkout --description 'the checkout flow' | grep -q 'created epic checkout' && test -f tasks/backlog/checkout/_group.md"
+assert "group describe changes an epic's description, in one commit (ticket 384)" \
+  bash -c "cd '${work}' && '${AMD}' group describe checkout 'the checkout floe' >/dev/null \
+    && '${AMD}' group describe checkout 'the checkout flow, start to end' | grep -q 'checkout: the checkout flow, start to end' \
+    && grep -q '^description: \"the checkout flow, start to end\"' tasks/backlog/checkout/_group.md \
+    && [ -z \"\$(git status --porcelain -- tasks/backlog/checkout)\" ] \
+    && git log -1 --format=%s | grep -qxF 'group-describe: checkout \"the checkout flow, start to end\"'"
+assert "...refuses a group that isn't there, and two lines" \
+  bash -c "cd '${work}' && ! '${AMD}' group describe nowhere 'x' 2>/dev/null \
+    && '${AMD}' group describe checkout \"\$(printf 'one\ntwo')\" 2>&1 | grep -q 'a description is one line'"
 assert "group sprint records its length" \
   bash -c "cd '${work}' && '${AMD}' group sprint sprint-1 --days 10 | grep -q 'created sprint sprint-1 (10 days)'"
 assert "a duplicate group is refused" \
@@ -3100,7 +3109,7 @@ assert "rite mcp writes nothing but JSON-RPC on stdout, one reply per request" \
 assert "initialize agrees the protocol version and names the server" \
   bash -c "grep '\"id\":1,' '${mcp}/out' | grep -q '\"protocolVersion\":\"2025-06-18\"' && grep '\"id\":1,' '${mcp}/out' | grep -q '\"name\":\"kanrite\"'"
 assert "tools/list offers the read and change tools, and nothing that abandons" \
-  bash -c "l=\$(grep '\"id\":2,' '${mcp}/out') && for t in screen board ticket search_tickets create_ticket move_ticket edit_ticket add_note file_ticket; do printf '%s' \"\$l\" | grep -q \"\\\"name\\\":\\\"\$t\\\"\" || exit 1; done && ! printf '%s' \"\$l\" | grep -q abandon"
+  bash -c "l=\$(grep '\"id\":2,' '${mcp}/out') && for t in screen board ticket search_tickets create_ticket move_ticket edit_ticket add_note file_ticket create_group describe_group; do printf '%s' \"\$l\" | grep -q \"\\\"name\\\":\\\"\$t\\\"\" || exit 1; done && ! printf '%s' \"\$l\" | grep -q abandon"
 assert "create_ticket makes a backlog ticket with its priority and points, committed" \
   bash -c "grep -q 'priority: \"high\"' '${mcp}'/board/tasks/*/001-make-the-widget.md && git -C '${mcp}/board' log --format=%s | grep -qx 'new: 001 \"Make the widget\"'"
 assert "a move the board refuses comes back as a tool error saying why" \
@@ -3127,6 +3136,20 @@ rm -f "${oldmcp}/.claude.json"
 assert "rite mcp setup --fix changes nothing when there is no old entry" \
   bash -c "HOME='${oldmcp}' '${AMD}' mcp setup --fix | grep -q 'No agile-md entry'"
 rm -rf "${oldmcp}"
+{
+  rpc 1 create_group '{"name":"launch","description":"Getting it out of the dor"}'
+  rpc 2 create_group '{"name":"s1","kind":"sprint","days":7}'
+  rpc 3 describe_group '{"name":"launch","description":"Getting it out of the door"}'
+} | in_mcp > "${mcp}/groups.out"
+assert "create_group makes an epic and a sprint, each committed (ticket 384)" \
+  bash -c "! grep -q '\"isError\":true' '${mcp}/groups.out' \
+    && grep -q '^kind: \"sprint\"' '${mcp}'/board/tasks/backlog/s1/_group.md && grep -q '^days: \"7\"' '${mcp}'/board/tasks/backlog/s1/_group.md \
+    && git -C '${mcp}/board' log --format=%s | grep -qx 'group-sprint: s1' \
+    && git -C '${mcp}/board' log --format=%s | grep -qxF 'group-epic: launch \"Getting it out of the dor\"'"
+assert "describe_group changes the description and commits it" \
+  bash -c "grep -q '^description: \"Getting it out of the door\"' '${mcp}'/board/tasks/backlog/launch/_group.md \
+    && git -C '${mcp}/board' log -1 --format=%s | grep -qxF 'group-describe: launch \"Getting it out of the door\"' \
+    && [ -z \"\$(git -C '${mcp}/board' status --porcelain -- tasks)\" ]"
 rpc 8 create_ticket '{"title":"Sized wrong","points":"4"}' | in_mcp > "${mcp}/bad.out"
 assert "create_ticket refuses bad points before writing anything (ticket 382)" \
   bash -c "grep -q '\"isError\":true' '${mcp}/bad.out' && grep -q 'invalid points' '${mcp}/bad.out' \
