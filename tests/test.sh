@@ -3023,6 +3023,49 @@ assert "an archived project's tickets can't be changed through rite mcp" \
   bash -c "cd '${mcp}/board' && echo 'archived = on' >> .settings && out=\$(printf '%s\\n' '{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"create_ticket\",\"arguments\":{\"title\":\"No\"}}}' | '${AMD}' mcp 2>/dev/null) && printf '%s' \"\$out\" | grep -q '\"isError\":true' && printf '%s' \"\$out\" | grep -q archived"
 rm -rf "${mcp}"
 
+echo "doctor:"
+# Its own machine: config, HOME (for the MCP check) and a TMPDIR the projects
+# aren't under, since boards under the temporary folder are scratch to it
+# (and to riteui's landing page) and the suite's are all in ${TMPDIR}.
+doc="$(mktemp -d)"
+mkdir -p "${doc}/home" "${doc}/tmp" "${doc}/work/hosted"
+dr="${doc}/dr"
+printf '#!/usr/bin/env bash\nHOME=%q XDG_CONFIG_HOME=%q TMPDIR=%q exec %q doctor "$@"\n' \
+  "${doc}/home" "${doc}/config" "${doc}/tmp" "${AMD}" > "${dr}"
+chmod +x "${dr}"
+assert "rite doctor --help says it changes nothing without --fix, and offers --json" \
+  bash -c "'${AMD}' doctor --help | tr '\n' ' ' | grep -q 'Changes nothing unless given --fix' && '${AMD}' doctor --help | grep -q -- '--json' && '${AMD}' --help | grep -q 'rite doctor'"
+assert "rite doctor on a machine with nothing wrong is all ok and exits 0" \
+  bash -c "out=\$('${dr}') && ! printf '%s' \"\$out\" | grep -qE '^(warning|problem)' && printf '%s' \"\$out\" | grep -q '0 problems, 0 warnings'"
+( cd "${doc}/work/hosted" && git init -q hosted-tickets && git init -q hosted-documents \
+  && cd hosted-tickets && git config user.email t@t.co && git config user.name t \
+  && XDG_CONFIG_HOME="${doc}/init-config" "${AMD}" init hosted --local-only >/dev/null 2>&1 \
+  && git add -A && git commit -q -m start )
+# The KanRite-hosted shape (2026-11-10): not registered, still hidden.
+mkdir -p "${doc}/config/kanrite"
+rm -f "${doc}/config/kanrite/repos"
+printf 'ui.hidden-projects = %s,%s\n' "${doc}/work/hosted/hosted-tickets" "${doc}/gone" > "${doc}/config/kanrite/config"
+printf '%s/gone/tasks = gone\n' "${doc}" > "${doc}/config/kanrite/project-trust"
+assert "rite doctor finds a project with a board that isn't registered, and exits 1" \
+  bash -c "out=\$('${dr}'); rc=\$?; [ \$rc -eq 1 ] && printf '%s' \"\$out\" | grep -q '^problem  project hosted isn.t registered' && printf '%s' \"\$out\" | grep -q 'rite mine --unhide hosted'"
+assert "rite doctor warns of hidden and project-trust entries for folders that are gone" \
+  bash -c "out=\$('${dr}'); printf '%s' \"\$out\" | grep -q '^warning  hidden project .*/gone is gone' && printf '%s' \"\$out\" | grep -q '^warning  1 project-trust entry'"
+assert "rite doctor changes nothing without --fix" \
+  bash -c "test ! -f '${doc}/config/kanrite/repos' && grep -q gone '${doc}/config/kanrite/project-trust'"
+assert "rite doctor --json gives the same list with its counts" \
+  bash -c "'${dr}' --json | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d[\"problems\"]==1 and d[\"warnings\"]==2; assert any(c[\"check\"]==\"unregistered-project\" and c[\"fix\"][\"automatic\"] for c in d[\"checks\"])'"
+hosted_commits="$(git -C "${doc}/work/hosted/hosted-tickets" rev-list --count HEAD)"
+assert "rite doctor --fix registers the project locally and drops the leftovers, then exits 0" \
+  bash -c "out=\$('${dr}' --fix) && printf '%s' \"\$out\" | grep -q 'registered .*hosted-tickets' && grep -q 'hosted-documents\$' '${doc}/config/kanrite/repos' && ! grep -q gone '${doc}/config/kanrite/project-trust' && grep -qx 'ui.hidden-projects = ${doc}/work/hosted/hosted-tickets' '${doc}/config/kanrite/config'"
+assert "rite doctor --fix commits nothing in the project's repository" \
+  bash -c "[ \"\$(git -C '${doc}/work/hosted/hosted-tickets' rev-list --count HEAD)\" = '${hosted_commits}' ] && [ -z \"\$(git -C '${doc}/work/hosted/hosted-tickets' status --porcelain)\" ]"
+assert "after rite doctor --fix the hidden project can be shown again" \
+  bash -c "HOME='${doc}/home' XDG_CONFIG_HOME='${doc}/config' TMPDIR='${doc}/tmp' '${AMD}' mine --unhide hosted | grep -q 'hosted is back'"
+printf '{"mcpServers":{"agile-md":{}}}' > "${doc}/home/.claude.json"
+assert "rite doctor names rite mcp setup --fix for an old agile-md MCP entry, and doesn't change it" \
+  bash -c "out=\$('${dr}' --fix); rc=\$?; [ \$rc -eq 1 ] && printf '%s' \"\$out\" | grep -q 'fix: rite mcp setup --fix' && grep -q agile-md '${doc}/home/.claude.json'"
+rm -rf "${doc}"
+
 echo "RITE_DIR:"
 # A fresh repo, not `${tmp}`: README/settings now live at the repository
 # root, so a second RITE_DIR-relocated board inside the same, already-heavily

@@ -20,6 +20,7 @@ board (`riteui`). For what it is and how to install it, see the
 - [Roadmaps](#roadmaps)
 - [Statistics](#statistics)
 - [Several repositories at once](#several-repositories-at-once)
+- [Checking this machine: rite doctor](#checking-this-machine-rite-doctor)
 - [Bringing in existing work](#bringing-in-existing-work)
 - [Working together, and getting tickets back](#working-together-and-getting-tickets-back)
 - [Who can change the project's settings](#who-can-change-the-projects-settings)
@@ -834,6 +835,49 @@ The tickets themselves are never copied into a store. They're markdown in each
 repo, they change when you check out a branch or pull someone's work, and an
 index of them would be wrong the moment it was written. Reading a board is a
 directory listing and a few small files.
+
+## Checking this machine: rite doctor
+
+When something on this machine is set up wrongly, it usually shows only as
+something missing: a project that isn't on riteui's landing page, an AI tool
+whose KanRite tools fail. `rite doctor` looks over the setup, says what's
+wrong and the command that fixes it, and changes nothing:
+
+```bash
+rite doctor            # each check: ok, warning or problem
+rite doctor --fix      # put right what rite can, then check again
+rite doctor --json     # the same list, for scripts
+```
+
+It checks:
+
+- **Registered repositories**: a registered folder that's gone (a warning:
+  rite already skips it), or one that isn't a git repository any more, such
+  as a copy with an empty `.git` folder (a problem: clone it again).
+- **A project that isn't registered**: a tickets repository with a board,
+  found beside your other projects or named in your hidden list or project
+  trust, that isn't in `~/.config/kanrite/repos`. riteui shows only
+  registered projects, so such a project is on neither the landing page nor
+  its Hidden list. `--fix` registers it, with its documents and the
+  repositories it declares that are cloned beside it, **on this machine
+  only**: unlike `rite register`, nothing is committed or pushed. If you had
+  hidden it, it stays hidden; `rite mine --unhide <project>` shows it again.
+  Archived projects and boards under the temporary folder are left out.
+- **Declared repositories cloned beside the project but not registered.**
+- **Leftovers**: entries in `ui.hidden-projects`, `ui.folded-graphs` and
+  `project-trust` for folders that are gone. They do nothing; `--fix`
+  takes them out.
+- **The old `agile-md` MCP entry** in Claude Code, Cursor, Codex or Gemini
+  CLI (a problem: it runs `amd`, which 5.0 renamed). rite never changes
+  another tool's config, so `--fix` leaves it and names the command:
+  `rite mcp setup --fix` for Claude Code, `rite mcp setup <tool>` for the
+  others.
+
+`--fix` only ever touches rite's own files on this machine (the registry,
+the hidden and folded lists in `config`, and `project-trust`): never a
+repository, never another tool's settings, never a folder. `rite doctor`
+exits 1 while a problem is left (warnings don't count), so a script or CI
+job can run it.
 
 ## Bringing in existing work
 
