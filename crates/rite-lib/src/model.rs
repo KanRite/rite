@@ -245,7 +245,12 @@ pub fn find_repos() -> Result<FoundRepos> {
     // A hard error now, not a `.ok()` folded away — `riteui` operates on
     // exactly one project (the one launched from), never a personal
     // cross-project stack the way the old machine-wide registry allowed.
-    let current = Board::discover()?;
+    find_repos_from(Board::discover()?)
+}
+
+/// [`find_repos`] for the project whose own board is `current`, wherever
+/// it is: what the MCP server opens another project by (ticket 381).
+pub fn find_repos_from(current: Board) -> Result<FoundRepos> {
     let current_root = current.repo_root().to_path_buf();
     let declared = crate::board_settings::load(&current).repos();
     let registry = Registry::load();

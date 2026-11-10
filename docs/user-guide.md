@@ -1063,6 +1063,10 @@ next?", "make a ticket for this bug" or "move this to doing". Its tools:
   committed and pushed as `rite` would, so git has the record.
 - **Never:** abandoning a ticket, breaking someone's lock, settings, or
   branches. Those stay with you.
+- **Other projects:** `projects` lists every project on this machine, as the
+  landing page does, and every other tool takes a `project` name to work on
+  that one instead of the project it was started in, with the same checks
+  (an archived project only reads).
 
 Your AI tool asks before running a change, as it does for its other tools.
 Nothing runs unless your AI tool starts `rite mcp`; rite holds no API keys

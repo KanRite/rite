@@ -3221,6 +3221,49 @@ assert "rite doctor names rite mcp setup --fix for an old agile-md MCP entry, an
   bash -c "out=\$('${dr}' --fix); rc=\$?; [ \$rc -eq 1 ] && printf '%s' \"\$out\" | grep -q 'fix: rite mcp setup --fix' && grep -q agile-md '${doc}/home/.claude.json'"
 rm -rf "${doc}"
 
+echo "rite mcp reaches every project on this machine (ticket 381):"
+# Its own config and a TMPDIR the projects aren't under: boards under the
+# temporary folder are scratch, and left out of the list of projects.
+mp="$(mktemp -d)"
+mkdir -p "${mp}/tmp" "${mp}/work/alpha" "${mp}/work/beta"
+for p in alpha beta; do
+  ( cd "${mp}/work/${p}" && git init -q "${p}-tickets" && cd "${p}-tickets" \
+    && git config user.email t@t.co && git config user.name Tess \
+    && XDG_CONFIG_HOME="${mp}/config" TMPDIR="${mp}/tmp" RITE_YES=1 "${AMD}" init "${p}" --local-only >/dev/null 2>&1 \
+    && git add -A && git commit -q -m "board for ticket 381" \
+    && XDG_CONFIG_HOME="${mp}/config" TMPDIR="${mp}/tmp" "${AMD}" register >/dev/null 2>&1 )
+done
+mprpc() { printf '{"jsonrpc":"2.0","id":%s,"method":"tools/call","params":{"name":"%s","arguments":%s}}\n' "$1" "$2" "$3"; }
+in_alpha_mcp() { (cd "${mp}/work/alpha/alpha-tickets" && XDG_CONFIG_HOME="${mp}/config" XDG_STATE_HOME="${mp}/state" TMPDIR="${mp}/tmp" "${AMD}" mcp 2>/dev/null); }
+{
+  mprpc 1 projects '{}'
+  mprpc 2 create_ticket '{"title":"Over in beta","project":"beta"}'
+  mprpc 3 create_ticket '{"title":"Nowhere","project":"gamma"}'
+  mprpc 4 board '{"project":"BETA"}'
+} | in_alpha_mcp > "${mp}/out"
+assert "projects lists every registered project, marking the one the server started in" \
+  bash -c "l=\$(grep '\"id\":1,' '${mp}/out') && printf '%s' \"\$l\" | grep -q 'alpha  .*\[current\]' && printf '%s' \"\$l\" | grep -q 'beta  ' \
+    && ! printf '%s' \"\$l\" | grep -q 'beta  [^\\\\]*\[current'"
+assert "create_ticket with project makes it on that project's board, committed there" \
+  bash -c "! grep '\"id\":2,' '${mp}/out' | grep -q '\"isError\":true' \
+    && test -f '${mp}'/work/beta/beta-tickets/tasks/backlog/001-over-in-beta.md \
+    && ! ls '${mp}'/work/alpha/alpha-tickets/tasks/backlog | grep -q over-in-beta \
+    && git -C '${mp}/work/beta/beta-tickets' log -1 --format=%s | grep -qxF 'new: 001 \"Over in beta\"'"
+assert "an unknown project is an error naming the ones there are" \
+  bash -c "l=\$(grep '\"id\":3,' '${mp}/out') && printf '%s' \"\$l\" | grep -q '\"isError\":true' \
+    && printf '%s' \"\$l\" | grep -q 'no project called gamma on this machine (alpha, beta)'"
+assert "a project is found by name with its case ignored" \
+  bash -c "grep '\"id\":4,' '${mp}/out' | grep -q 'beta-tickets#001 Over in beta'"
+echo 'archived = on' >> "${mp}/work/beta/beta-tickets/.settings"
+mprpc 5 create_ticket '{"title":"Not now","project":"beta"}' | in_alpha_mcp > "${mp}/archived.out"
+assert "another project that's archived refuses a change" \
+  bash -c "grep -q '\"isError\":true' '${mp}/archived.out' && grep -q archived '${mp}/archived.out' \
+    && ! ls '${mp}'/work/beta/beta-tickets/tasks/backlog | grep -q not-now"
+assert "every tool but projects takes project" \
+  bash -c "printf '%s\n' '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}' | (cd '${mp}/work/alpha/alpha-tickets' && '${AMD}' mcp 2>/dev/null) \
+    | python3 -c 'import json,sys; t=json.loads(sys.stdin.readline())[\"result\"][\"tools\"]; assert any(x[\"name\"]==\"projects\" for x in t); assert all(\"project\" in x[\"inputSchema\"][\"properties\"] for x in t if x[\"name\"]!=\"projects\")'"
+rm -rf "${mp}"
+
 echo "RITE_DIR:"
 # A fresh repo, not `${tmp}`: README/settings now live at the repository
 # root, so a second RITE_DIR-relocated board inside the same, already-heavily
