@@ -107,9 +107,7 @@ pub fn removed(board: &Board) -> Result<Vec<Removed>> {
             Removed {
                 id,
                 stem,
-                title: task::meta_in(&text, "title")
-                    .map(|t| t.trim().trim_matches('"').to_string())
-                    .unwrap_or_default(),
+                title: task::meta_text_in(&text, "title").unwrap_or_default(),
                 path: line.to_string(),
                 commit: commit.clone(),
                 author: author.clone(),
