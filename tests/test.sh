@@ -700,6 +700,8 @@ rm -rf "${pl}"
 rm -rf "${tr}"
 
 echo "register in a folder of several projects (ticket 103):"
+assert "register's and deregister's --help say when rite asks which project (ticket 376)" \
+  bash -c "for c in register deregister; do '${AMD}' \$c --help | tr -s ' \n' ' ' | grep -q 'In a folder holding several projects, outside a board, rite asks before using the current one' || exit 1; done"
 # acme (current) and beta side by side, and a code repository, beta-app,
 # that belongs to beta. From inside beta-app, a plain `rite register` would
 # declare it on acme, the folder's current project.
