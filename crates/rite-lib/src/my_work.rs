@@ -35,10 +35,10 @@ use crate::registry::{self, Registry};
 use crate::settings::Config;
 
 /// Where the hidden projects are kept, in KanRite's own per-machine config.
-const HIDDEN: &str = "ui.hidden-projects";
+pub(crate) const HIDDEN: &str = "ui.hidden-projects";
 /// Projects whose sprint graphs you've folded on the landing page (ticket
 /// 305), by board folder, in the same per-machine config.
-const FOLDED: &str = "ui.folded-graphs";
+pub(crate) const FOLDED: &str = "ui.folded-graphs";
 /// Whether work to pick includes unassigned tickets (ticket 160).
 const UNASSIGNED: &str = "ui.include-unassigned";
 

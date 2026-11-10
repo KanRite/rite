@@ -85,7 +85,7 @@ pub fn has_empty_dot_git(dir: &Path) -> bool {
 pub fn not_a_repo(dir: &Path) -> String {
     if has_empty_dot_git(dir) {
         format!(
-            "{} has a .git folder with nothing in it, so it isn't a git repository: clone it              again, or restore its .git from a copy",
+            "{} has a .git folder with nothing in it, so it isn't a git repository: clone it again, or restore its .git from a copy",
             dir.display()
         )
     } else {

@@ -6,6 +6,7 @@
 
 mod completions;
 mod docs;
+mod doctor;
 mod form;
 mod idea;
 mod init;
@@ -204,6 +205,14 @@ creates, moves, edits, assigns, notes and files tickets under the same
 rules, each committed. It never abandons, unlocks or changes settings. Your
 AI tool starts it; `rite mcp setup` prints how to connect Claude Code,
 VS Code, Cursor, Codex or Gemini CLI.
+
+`rite doctor` checks this machine's setup: registered repositories that
+are gone or aren't clones, a project with a board that isn't registered
+(riteui can't show it, not even as hidden), leftover hidden, folded and
+project-trust entries, and an old agile-md MCP entry. Each problem comes
+with the command that fixes it, and nothing changes without --fix, which
+touches only rite's own files on this machine. It exits 1 while a problem
+is left, for scripts; --json gives the same list.
 
 Environment:
   RITE_DIR           board directory name under the repository root (default: tasks)
@@ -883,6 +892,21 @@ enum Cmd {
         #[arg(long)]
         no_unassigned: bool,
     },
+    /// Check this machine's KanRite setup and say how to fix what's wrong
+    ///
+    /// Lists each check as ok, warning or problem, with the command that
+    /// fixes it. Changes nothing unless given --fix, which touches only
+    /// rite's own files on this machine (the registry, the hidden and
+    /// folded lists, project trust): never a repository, never another
+    /// tool's config. Exits 1 while a problem is left
+    Doctor {
+        /// Put right what rite can, in its own files only, then check again
+        #[arg(long)]
+        fix: bool,
+        /// The findings as JSON, for scripts and riteui
+        #[arg(long)]
+        json: bool,
+    },
     /// Update rite and riteui to the newest release
     ///
     /// One release at a time, each verified against GitHub's checksum and
@@ -1286,6 +1310,10 @@ fn run() -> Result<()> {
 
     // Completions don't need a board — and often run before there is one.
     // Updating rite needs no board, and works from anywhere (ticket 191).
+    // The doctor looks at this machine, not a board (ticket 351).
+    if let Cmd::Doctor { fix, json } = command {
+        return doctor::run(fix, json);
+    }
     if let Cmd::Update { check, rollback } = command {
         return update::run(check, rollback);
     }
@@ -1479,6 +1507,7 @@ fn run() -> Result<()> {
         | Cmd::Mine { .. }
         | Cmd::Completions { .. }
         | Cmd::Update { .. }
+        | Cmd::Doctor { .. }
         | Cmd::Gui => {
             unreachable!("handled above")
         }
