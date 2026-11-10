@@ -400,7 +400,7 @@ pub fn today() -> (String, String) {
     (date, timestamp)
 }
 
-fn yaml_filter(value: Value) -> String {
+pub(crate) fn yaml_filter(value: Value) -> String {
     let raw = value.to_string();
     let mut out = String::with_capacity(raw.len() + 2);
     out.push('"');

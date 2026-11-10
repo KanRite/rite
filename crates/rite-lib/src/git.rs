@@ -931,12 +931,49 @@ pub fn commit_paths(repo: &Path, message: &str, paths: &BTreeSet<PathBuf>) -> Re
     push(repo)
 }
 
+/// `paths`, plus the old side of every staged rename whose new side is
+/// among them (ticket 383). A rename staged by an earlier command that
+/// never committed (it failed after its `git mv`) is still in the index
+/// when the next command changes the moved file. The next command's
+/// snapshot already had the old path's deletion in it, so `changed_paths`
+/// leaves it out, and committing the new side alone left the ticket in two
+/// places on the remote. A rename is committed whole or not at all.
+fn with_rename_sources(repo: &Path, paths: &BTreeSet<PathBuf>) -> Result<BTreeSet<PathBuf>> {
+    let out = Command::new("git")
+        .arg("-C")
+        .arg(repo)
+        .args(["status", "--porcelain=v1", "-z"])
+        .output()
+        .context("running git status")?;
+    if !out.status.success() {
+        bail!("git status failed");
+    }
+    let text = String::from_utf8(out.stdout).context("git status produced non-utf8 output")?;
+    let mut all = paths.clone();
+    let mut fields = text.split('\0').filter(|f| !f.is_empty());
+    while let Some(entry) = fields.next() {
+        let Some(path) = entry.get(3..) else { continue };
+        // A rename or copy is followed by its original path as a field of
+        // its own. Only a rename staged in the index (the first status
+        // letter) brings that path along.
+        if !entry[..2].contains(['R', 'C']) {
+            continue;
+        }
+        let Some(from) = fields.next() else { break };
+        if entry.starts_with('R') && paths.contains(Path::new(path)) {
+            all.insert(PathBuf::from(from));
+        }
+    }
+    Ok(all)
+}
+
 /// [`commit_paths`] without the push — for a repository with nowhere to
 /// push to, or a caller that decides about pushing itself.
 pub fn commit_paths_locally(repo: &Path, message: &str, paths: &BTreeSet<PathBuf>) -> Result<()> {
     if paths.is_empty() {
         return Ok(());
     }
+    let paths = &with_rename_sources(repo, paths)?;
     // Only `add` paths that still exist on disk. A path that's gone — the
     // old side of a `git mv`-based rename, or a `git rm --cached`'d
     // archived ticket — is usually already fully staged by whatever produced
