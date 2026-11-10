@@ -445,14 +445,26 @@ pub fn commit_all(repo: &Path, message: &str) -> Result<()> {
     Ok(())
 }
 
-/// `git push -u origin HEAD` — sets the upstream, which a freshly cloned,
-/// still-commit-less GitHub repository doesn't have yet.
+/// `git push origin HEAD`, with `-u` only when the branch has no upstream
+/// yet (a freshly cloned, still commit-less GitHub repository). Passing it
+/// every time made git print "branch 'main' set up to track 'origin/main'"
+/// after every change rite pushed (ticket 377).
 pub fn push(repo: &Path) -> Result<()> {
-    let (ok, detail) = run(Command::new("git")
+    let has_upstream = Command::new("git")
         .arg("-C")
         .arg(repo)
-        .args(["push", "-u", "origin", "HEAD"]))
-    .context("running git push")?;
+        .args(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok_and(|status| status.success());
+    let args: &[&str] = if has_upstream {
+        &["push", "origin", "HEAD"]
+    } else {
+        &["push", "-u", "origin", "HEAD"]
+    };
+    let (ok, detail) =
+        run(Command::new("git").arg("-C").arg(repo).args(args)).context("running git push")?;
     if !ok {
         bail!(failed("git push", &detail));
     }
