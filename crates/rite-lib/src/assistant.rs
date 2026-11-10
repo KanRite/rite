@@ -257,6 +257,30 @@ fn project_tools() -> Vec<Tool> {
             read_only: false,
             input: json!({"type": "object", "properties": {"ticket": reference, "epic": {"type": "string"}}, "required": ["ticket", "epic"]}),
         },
+        Tool {
+            name: "create_group",
+            title: "Create an epic or sprint",
+            description: "Make an epic or a (pending) sprint in a board's backlog, as `rite group epic`/`sprint` does, and commit it.",
+            read_only: false,
+            input: json!({"type": "object", "properties": {
+                "name": {"type": "string", "description": "Its folder name, which tickets record"},
+                "kind": {"type": "string", "enum": ["epic", "sprint"], "description": "epic when left out"},
+                "description": {"type": "string", "description": "One line"},
+                "days": {"type": "integer", "description": "A sprint's length in days"},
+                "board": {"type": "string", "description": "Which repository's board; the project's own when left out"}
+            }, "required": ["name"]}),
+        },
+        Tool {
+            name: "describe_group",
+            title: "Change an epic's or sprint's description",
+            description: "Set the one-line description of an epic or sprint, a started one included, and commit it. Empty clears it.",
+            read_only: false,
+            input: json!({"type": "object", "properties": {
+                "name": {"type": "string"},
+                "description": {"type": "string"},
+                "board": {"type": "string", "description": "Which repository's board; the project's own when left out"}
+            }, "required": ["name", "description"]}),
+        },
     ]
 }
 
@@ -379,6 +403,8 @@ pub fn call(name: &str, args: &Value) -> Result<Reply> {
         "assign_ticket" => assign_ticket(args),
         "add_note" => add_note(args),
         "file_ticket" => file_ticket(args),
+        "create_group" => create_group_tool(args),
+        "describe_group" => describe_group_tool(args),
         _ => bail!("there's no tool called {name}"),
     }
 }
@@ -1390,6 +1416,82 @@ fn file_ticket(args: &Value) -> Result<Reply> {
     lines.extend(warning.into_iter().map(|w| format!("warning: {w}")));
     let data = card(&repo, &moved);
     Ok(project.reply(lines.join("\n"), data))
+}
+
+/// `create_group` (ticket 384): `rite group epic`/`sprint`, with the same
+/// commit verbs.
+fn create_group_tool(args: &Value) -> Result<Reply> {
+    use crate::group::{DEFAULT_DAYS, Group, Kind, State};
+    let mut project = Project::open(Purpose::Write)?;
+    let i = project.index(arg(args, "board").as_deref())?;
+    let name = required(args, "name")?.trim().to_string();
+    let description = arg(args, "description")
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    let kind = match arg(args, "kind").as_deref().map(str::trim) {
+        None | Some("") | Some("epic") => Kind::Epic,
+        Some("sprint") => Kind::Sprint,
+        Some(other) => bail!("kind is epic or sprint, not {other}"),
+    };
+    let days = match args.get("days").and_then(Value::as_u64) {
+        Some(0) => bail!("a sprint lasts at least a day"),
+        Some(days) => u32::try_from(days).unwrap_or(u32::MAX),
+        None => DEFAULT_DAYS,
+    };
+    let repo = project.boards[i].0.clone();
+    let board = project.ready(i)?;
+    let verb = if kind == Kind::Sprint {
+        "group-sprint"
+    } else {
+        "group-epic"
+    };
+    let group = Group {
+        dir: board.dir(Column::Backlog).join(&name),
+        name: name.clone(),
+        kind,
+        description: description.clone(),
+        days,
+        state: State::Pending,
+    };
+    let ((), warning) = transition::with_auto_commit(board, verb, &name, &description, || {
+        board.create_group(&group)
+    })?;
+    let what = if kind == Kind::Sprint {
+        format!("sprint {name} ({days} days)")
+    } else {
+        format!("epic {name}")
+    };
+    let mut lines = vec![format!("created {what} on {repo}")];
+    lines.extend(warning.into_iter().map(|w| format!("warning: {w}")));
+    let data = json!({"repo": repo, "name": name, "kind": if kind == Kind::Sprint { "sprint" } else { "epic" }, "description": description, "days": days});
+    Ok(project.reply(lines.join("\n"), data))
+}
+
+/// `describe_group` (ticket 384): `rite group describe`.
+fn describe_group_tool(args: &Value) -> Result<Reply> {
+    let mut project = Project::open(Purpose::Write)?;
+    let i = project.index(arg(args, "board").as_deref())?;
+    let name = required(args, "name")?.trim().to_string();
+    let description = arg(args, "description")
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    let repo = project.boards[i].0.clone();
+    let board = project.ready(i)?;
+    let ((), warning) =
+        transition::with_auto_commit(board, "group-describe", &name, &description, || {
+            board.set_group_description(&name, &description)
+        })?;
+    let mut lines = vec![match description.as_str() {
+        "" => format!("{repo}: {name} has no description now"),
+        text => format!("{repo}: {name}: {text}"),
+    }];
+    lines.extend(warning.into_iter().map(|w| format!("warning: {w}")));
+    Ok(project.reply(
+        lines.join("\n"),
+        json!({"repo": repo, "name": name, "description": description}),
+    ))
 }
 
 #[cfg(test)]

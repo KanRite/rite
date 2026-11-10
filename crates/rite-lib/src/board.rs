@@ -618,6 +618,19 @@ impl Board {
         group.save()
     }
 
+    /// Change an epic's or sprint's description (ticket 384). Only its
+    /// `_group.md` changes. A started or closed sprint takes it too: the
+    /// description is words about it, not what's in it.
+    pub fn set_group_description(&self, name: &str, description: &str) -> Result<()> {
+        let mut group = self.group(name)?;
+        let description = description.trim();
+        if description.contains('\n') {
+            bail!("a description is one line");
+        }
+        group.description = description.to_string();
+        group.save()
+    }
+
     /// Rename an epic or sprint everywhere it is recorded (ticket 083): its
     /// directory, the `name` in its `_group.md`, and the `epic` of every
     /// ticket in it — those in its folder and those that have moved on to
