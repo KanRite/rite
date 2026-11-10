@@ -52,6 +52,29 @@ const SEARCH_LIMIT: usize = 30;
 
 /// Every tool, in the order a client shows them.
 pub fn tools() -> Vec<Tool> {
+    let mut tools = vec![Tool {
+        name: "projects",
+        title: "List the projects on this machine",
+        description: "Every project registered on this machine, as the desktop board's landing page lists them: its name, folder, and whether it's the one this server started in, hidden, archived, or can't be opened. Give a project's name as `project` to any other tool to work on it.",
+        read_only: true,
+        input: json!({"type": "object", "properties": {}}),
+    }];
+    // Every tool works on another project when given its name (ticket 381);
+    // added here so a new tool can't leave it out.
+    for mut tool in project_tools() {
+        if let Some(properties) = tool.input["properties"].as_object_mut() {
+            properties.insert(
+                "project".to_string(),
+                json!({"type": "string", "description": "Another project on this machine, by name (see projects); the one this server started in when left out"}),
+            );
+        }
+        tools.push(tool);
+    }
+    tools
+}
+
+/// The tools that work on a project.
+fn project_tools() -> Vec<Tool> {
     let reference = json!({"type": "string", "description": "A ticket: its number (`42`), `repo#42` for another repository's board, or part of its file name"});
     vec![
         Tool {
@@ -237,10 +260,107 @@ pub fn tools() -> Vec<Tool> {
     ]
 }
 
+thread_local! {
+    /// The project a call names with `project` (ticket 381), for
+    /// [`Project::open`] to open instead of the one the server started in.
+    static ASKED: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Clears [`ASKED`] when a call ends, however it ends.
+struct Asked;
+
+impl Asked {
+    fn set(project: Option<String>) -> Asked {
+        ASKED.with(|asked| *asked.borrow_mut() = project);
+        Asked
+    }
+}
+
+impl Drop for Asked {
+    fn drop(&mut self) {
+        ASKED.with(|asked| *asked.borrow_mut() = None);
+    }
+}
+
+/// The project on this machine called `name` (its name or display name,
+/// case ignored), for a call's `project` (ticket 381).
+fn named_project(name: &str) -> Result<my_work::Project> {
+    let name = name.trim();
+    let projects = my_work::projects();
+    let found = projects
+        .iter()
+        .find(|p| crate::names::same(&p.name, name) || crate::names::same(&p.shown, name))
+        .ok_or_else(|| {
+            anyhow!(
+                "there's no project called {name} on this machine ({})",
+                projects
+                    .iter()
+                    .map(|p| p.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        })?;
+    if let Some(why) = &found.broken {
+        bail!("{} can't be opened: {why}", found.name);
+    }
+    Ok(found.clone())
+}
+
+/// `projects` (ticket 381): every project on this machine, as the desktop
+/// board's landing page lists them, and which one the server started in.
+fn projects_tool() -> Result<Reply> {
+    let here = Board::discover().ok().map(|board| {
+        dunce::canonicalize(board.repo_root()).unwrap_or_else(|_| board.repo_root().to_path_buf())
+    });
+    let mut lines = Vec::new();
+    let mut data = Vec::new();
+    for p in my_work::projects() {
+        let root = dunce::canonicalize(&p.root).unwrap_or_else(|_| p.root.clone());
+        let current = here.as_ref() == Some(&root);
+        let mut marks = Vec::new();
+        if current {
+            marks.push("current".to_string());
+        }
+        if p.hidden {
+            marks.push("hidden".to_string());
+        }
+        if p.archived {
+            marks.push("archived".to_string());
+        }
+        if let Some(why) = &p.broken {
+            marks.push(format!("can't be opened: {why}"));
+        }
+        let shown = if p.shown != p.name {
+            format!("{} ({})", p.shown, p.name)
+        } else {
+            p.name.clone()
+        };
+        let marks = if marks.is_empty() {
+            String::new()
+        } else {
+            format!("  [{}]", marks.join(", "))
+        };
+        lines.push(format!("{shown}  {}{marks}", p.dir.display()));
+        data.push(json!({
+            "name": p.name, "shown": p.shown, "root": p.root, "dir": p.dir,
+            "current": current, "hidden": p.hidden, "archived": p.archived, "broken": p.broken,
+        }));
+    }
+    if lines.is_empty() {
+        lines.push("no projects are registered on this machine".to_string());
+    }
+    Ok(Reply {
+        text: lines.join("\n"),
+        data: Value::Array(data),
+    })
+}
+
 /// Runs the tool called `name` with `args`, from the current directory's
-/// project.
+/// project, or the one `args` names with `project` (ticket 381).
 pub fn call(name: &str, args: &Value) -> Result<Reply> {
+    let _asked = Asked::set(arg(args, "project").filter(|p| !p.trim().is_empty()));
     match name {
+        "projects" => projects_tool(),
         "screen" => screen_tool(),
         "board" => board_tool(args),
         "ticket" => ticket_tool(args),
@@ -273,7 +393,10 @@ struct Project {
 
 impl Project {
     fn open(purpose: Purpose) -> Result<Project> {
-        let found = model::find_repos()?;
+        let found = match ASKED.with(|asked| asked.borrow().clone()) {
+            Some(name) => model::find_repos_from(Board::in_repo(&named_project(&name)?.root))?,
+            None => model::find_repos()?,
+        };
         let mut project = Project {
             boards: found.repos,
             notes: Vec::new(),
@@ -1292,6 +1415,14 @@ mod tests {
                     );
                 }
             }
+        }
+        // Every tool but `projects` takes another project (ticket 381).
+        for tool in tools.iter().filter(|t| t.name != "projects") {
+            assert!(
+                tool.input["properties"].get("project").is_some(),
+                "{} takes project",
+                tool.name
+            );
         }
         let err = call("nothing", &json!({})).unwrap_err();
         assert!(err.to_string().contains("no tool called nothing"));

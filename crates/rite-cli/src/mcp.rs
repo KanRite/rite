@@ -329,7 +329,7 @@ pub fn setup(client: Option<&str>, home: Option<&Path>) -> Result<String> {
     }
     if all {
         out.push_str(
-            "Any other tool: run `rite mcp` as a stdio MCP server, started in the project's folder.\n\n",
+            "Any other tool: run `rite mcp` as a stdio MCP server, started in the project's folder. Its tools take a `project` name to work on another project on this machine (`projects` lists them).\n\n",
         );
     }
     let found: Vec<_> = home
