@@ -182,8 +182,10 @@ fn field(text: &str, key: &str) -> Option<String> {
         if let Some(rest) = line.strip_prefix(key)
             && let Some(value) = rest.strip_prefix(':')
         {
-            let value = value.trim().trim_matches('"').to_string();
-            return Some(value);
+            // Written with `{:?}`, so read with its escapes undone (tickets
+            // 379, 384): a description holding `"` came back with
+            // backslashes, and saving it again doubled them.
+            return Some(crate::task::unescape(value.trim()));
         }
         if line == "---" && !text.starts_with("---") {
             break;
@@ -264,5 +266,18 @@ mod tests {
         group.description = "rewritten".into();
         group.save().unwrap();
         assert_eq!(Group::read(&group.dir).unwrap().description, "rewritten");
+    }
+
+    #[test]
+    fn a_description_with_quotes_round_trips() {
+        // Tickets 379 and 384: read back as written, and saved again unchanged.
+        let (_dir, mut group) = group_dir(Kind::Epic, "checkout");
+        let words = r#"The "checkout" flow, C:\temp"#;
+        group.description = words.into();
+        group.save().unwrap();
+        let read = Group::read(&group.dir).unwrap();
+        assert_eq!(read.description, words);
+        read.save().unwrap();
+        assert_eq!(Group::read(&group.dir).unwrap().description, words);
     }
 }
