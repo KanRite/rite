@@ -369,10 +369,11 @@ enum Cmd {
         #[arg(long)]
         dry_run: bool,
     },
-    /// Read the project's documents: the start page, a search, the page tree
+    /// The project's documents: the start page, a search, the page tree, and
+    /// making or changing one
     ///
-    /// The start page is the one pinned in riteui, else the README. Changes
-    /// are made in the documents repository itself, like any clone
+    /// The start page is the one pinned in riteui, else the README. `new`
+    /// and `edit` commit and push straight to main, as riteui's editor does
     Docs {
         #[command(subcommand)]
         action: DocsAction,
@@ -1209,6 +1210,38 @@ enum DocsAction {
         #[arg(value_name = "REPO/PATH")]
         document: String,
     },
+    /// Make a document in a folder (`adr/adr` and `adr/rfc` take the next
+    /// number), committed and pushed; prints its path
+    New {
+        /// The folder, inside the repository; empty for its top
+        #[arg(value_name = "FOLDER")]
+        folder: String,
+        #[arg(value_name = "TITLE")]
+        title: String,
+        /// Its text below the heading, from a file, or `-` for stdin
+        #[arg(long = "body-file", value_name = "PATH")]
+        body_file: Option<PathBuf>,
+        /// Which documents repository (default: the project's own)
+        #[arg(long, value_name = "NAME")]
+        repo: Option<String>,
+    },
+    /// Replace a document's text, committed and pushed
+    ///
+    /// From --body-file, or in a terminal $EDITOR on the document
+    Edit {
+        #[arg(value_name = "PATH")]
+        path: String,
+        /// The whole new text, from a file, or `-` for stdin
+        #[arg(long = "body-file", value_name = "PATH")]
+        body_file: Option<PathBuf>,
+        /// Refuse if the document changed since this version (as the MCP
+        /// server's `document` gives it)
+        #[arg(long, value_name = "VERSION")]
+        version: Option<String>,
+        /// Which documents repository (default: the project's own)
+        #[arg(long, value_name = "NAME")]
+        repo: Option<String>,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -1431,6 +1464,28 @@ fn run() -> Result<()> {
             DocsAction::Unpin { document } => docs::Action::Pin {
                 document,
                 on: false,
+            },
+            DocsAction::New {
+                folder,
+                title,
+                body_file,
+                repo,
+            } => docs::Action::New {
+                folder,
+                title,
+                body: body_file.map(|path| read_text(&path)).transpose()?,
+                repo,
+            },
+            DocsAction::Edit {
+                path,
+                body_file,
+                version,
+                repo,
+            } => docs::Action::Edit {
+                path,
+                text: body_file.map(|path| read_text(&path)).transpose()?,
+                version,
+                repo,
             },
         });
     }
@@ -4711,6 +4766,16 @@ fn cmd_templates(board: &Board, command: TemplateCmd) -> Result<()> {
             Ok(())
         }
     }
+}
+
+/// A `--body-file`'s text: the file, or stdin for `-` (ticket 380).
+fn read_text(path: &Path) -> Result<String> {
+    if path.as_os_str() == "-" {
+        let mut text = String::new();
+        std::io::Read::read_to_string(&mut std::io::stdin(), &mut text).context("reading stdin")?;
+        return Ok(text);
+    }
+    rite_lib::eol::read(path).with_context(|| format!("reading {}", path.display()))
 }
 
 /// `$EDITOR`, else the settings file's `editor` key, else `vi` — used by
