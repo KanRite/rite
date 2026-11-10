@@ -768,9 +768,10 @@ enum Cmd {
     Register {
         #[arg(value_name = "PATH")]
         path: Option<String>,
-        /// The project to declare it on, when the folder holds several
-        /// (default: the board you're in, or the folder's current project
-        /// — asked to confirm, since that's a team-wide change)
+        /// The project to declare it on (default: the board you're in, else
+        /// the folder's project). In a folder holding several projects,
+        /// outside a board, rite asks before using the current one, since
+        /// that's a team-wide change, and refuses without a terminal
         #[arg(long, value_name = "NAME")]
         project: Option<String>,
         /// Take the named repository off the project's declared list, for
@@ -797,9 +798,10 @@ enum Cmd {
     Deregister {
         #[arg(value_name = "NAME")]
         name: String,
-        /// The project to take it off, when the folder holds several
-        /// (default: the board you're in, or the folder's current project
-        /// — asked to confirm, since that's a team-wide change)
+        /// The project to take it off (default: the board you're in, else
+        /// the folder's project). In a folder holding several projects,
+        /// outside a board, rite asks before using the current one, since
+        /// that's a team-wide change, and refuses without a terminal
         #[arg(long, value_name = "NAME")]
         project: Option<String>,
     },
