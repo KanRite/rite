@@ -1,8 +1,8 @@
 //! `rite docs` (ticket 179): the project's documents from the command line —
-//! the start page, a search, the page tree the start page links to, and
-//! your own pinned documents (ticket 232). Otherwise reading only: the
-//! documents repository is a clone like any other, so changes are made
-//! there directly.
+//! the start page, a search, the page tree the start page links to, your
+//! own pinned documents (ticket 232), and making or changing a document
+//! (ticket 380), committed and pushed straight to main as riteui's editor
+//! does (ADR 0007).
 
 use anyhow::{Context, Result, bail};
 
@@ -12,15 +12,76 @@ use rite_lib::documents_edit;
 
 /// What `rite docs` was asked to do.
 pub enum Action {
-    Start { path: bool },
-    Search { query: String },
+    Start {
+        path: bool,
+    },
+    Search {
+        query: String,
+    },
     Tree,
     Pins,
-    Pin { document: String, on: bool },
+    Pin {
+        document: String,
+        on: bool,
+    },
+    New {
+        folder: String,
+        title: String,
+        body: Option<String>,
+        repo: Option<String>,
+    },
+    Edit {
+        path: String,
+        /// The whole new text; `None` opens `$EDITOR` in a terminal.
+        text: Option<String>,
+        version: Option<String>,
+        repo: Option<String>,
+    },
 }
 
 pub fn run(action: Action) -> Result<()> {
     let board = Board::discover()?;
+    // Writing is its own thing: any documents repository, and refused for
+    // an archived project's own (ticket 380).
+    let action = match action {
+        Action::New {
+            folder,
+            title,
+            body,
+            repo,
+        } => {
+            let (name, root) = documents_edit::writable_source(&board, repo.as_deref())?;
+            let folder = documents_edit::strip_source(&name, &folder).to_string();
+            let (path, done) =
+                documents_edit::create_document_with(&root, &folder, &title, body.as_deref())?;
+            report(&done);
+            println!("{name}/{path}");
+            return Ok(());
+        }
+        Action::Edit {
+            path,
+            text,
+            version,
+            repo,
+        } => {
+            let (name, root) = documents_edit::writable_source(&board, repo.as_deref())?;
+            let path = documents_edit::strip_source(&name, &path).to_string();
+            let (text, version) = match text {
+                Some(text) => (text, version),
+                None if crate::form::available() => {
+                    let now = documents::read(&root, &path)?;
+                    let edited =
+                        crate::form::body(&now, std::ffi::OsStr::new(&crate::editor_command()))?;
+                    (edited, Some(documents_edit::version(&now)))
+                }
+                None => bail!("give the new text with --body-file (or run it in a terminal)"),
+            };
+            let done = documents_edit::replace(&root, &path, &text, version.as_deref())?;
+            report(&done);
+            return Ok(());
+        }
+        other => other,
+    };
     let sources = documents::sources(&board);
     let own = sources
         .iter()
@@ -120,11 +181,18 @@ pub fn run(action: Action) -> Result<()> {
                 }
             }
             let done = rite_lib::doc_pins::set(&root, &me, source, path, on)?;
-            if let Some(warning) = &done.warning {
-                eprintln!("rite: {warning}");
-            }
-            println!("{}", done.message);
+            report(&done);
             Ok(())
         }
+        Action::New { .. } | Action::Edit { .. } => unreachable!("handled above"),
     }
+}
+
+/// What a documents change says: its warning on stderr, its message on
+/// stdout.
+fn report(done: &documents::Restored) {
+    if let Some(warning) = &done.warning {
+        eprintln!("rite: {warning}");
+    }
+    println!("{}", done.message);
 }

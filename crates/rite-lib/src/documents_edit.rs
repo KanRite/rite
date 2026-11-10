@@ -622,11 +622,93 @@ fn numbers(root: &Path, folder: &str, deep: bool) -> Vec<u32> {
     out
 }
 
+/// The documents repository `repo` names, else the project's own (ticket
+/// 380), cloned here: `(name, root)`. Refused for an archived project's
+/// own documents, as riteui's editor refuses them; a shared repository
+/// belongs to no one project, so it never is.
+pub fn writable_source(
+    board: &crate::board::Board,
+    repo: Option<&str>,
+) -> Result<(String, PathBuf)> {
+    let sources = crate::documents::sources(board);
+    let wanted = repo.map(str::trim).filter(|r| !r.is_empty());
+    let source = match wanted {
+        Some(repo) => sources
+            .iter()
+            .find(|s| crate::names::same(&s.name, repo))
+            .with_context(|| {
+                format!("{repo} isn't one of this project's documents repositories")
+            })?,
+        None => sources
+            .iter()
+            .find(|s| s.kind == crate::documents::Kind::Own)
+            .context("this project has no documents repository")?,
+    };
+    let root = source
+        .root
+        .clone()
+        .with_context(|| format!("{} isn't cloned on this machine", source.name))?;
+    if source.kind == crate::documents::Kind::Own {
+        crate::archive::ensure_writable(board)?;
+    }
+    Ok((source.name.clone(), root))
+}
+
+/// `path` as given, without its repository's name in front (`name/…`, as
+/// search results show it).
+pub fn strip_source<'a>(name: &str, path: &'a str) -> &'a str {
+    path.strip_prefix(&format!("{name}/")).unwrap_or(path)
+}
+
+/// Replaces a document's text (ticket 380): [`save`], checked against
+/// `opened` when given, else against the file as it is now, as a ticket's
+/// edit takes its current version when none is given.
+pub fn replace(root: &Path, path: &str, text: &str, opened: Option<&str>) -> Result<Restored> {
+    let full = resolve(root, path)?;
+    let current = match opened.map(str::trim).filter(|v| !v.is_empty()) {
+        Some(version) => version.to_string(),
+        None => version(&crate::eol::read(&full).with_context(|| format!("reading {path}"))?),
+    };
+    save(root, path, &crate::eol::lf(text.to_string()), &current)
+}
+
+/// `# heading`, then `body` (LF line endings, ending in one newline). A
+/// `# ` line at the top of `body` gives way to `heading`.
+fn with_heading(heading: &str, body: &str) -> String {
+    let body = crate::eol::lf(body.to_string());
+    let body = body.trim_start_matches('\n');
+    let body = match body.split_once('\n') {
+        Some((first, rest)) if first.starts_with("# ") => rest.trim_start_matches('\n'),
+        None if body.starts_with("# ") => "",
+        _ => body,
+    };
+    let body = body.trim_end();
+    if body.is_empty() {
+        format!("# {heading}\n\n")
+    } else {
+        format!("# {heading}\n\n{body}\n")
+    }
+}
+
 /// Makes a new document titled `title` in `folder`: `<slug>.md` beginning
 /// `# <title>`. In a numbered folder (one whose documents are `NNNN-…`, or
 /// an empty `adr/adr` or `adr/rfc`) it takes the next number, and in those
 /// two its heading says `ADR NNNN:` or `RFC NNNN:`. Returns its path.
 pub fn create_document(root: &Path, folder: &str, title: &str) -> Result<(String, Restored)> {
+    create_document_with(root, folder, title, None)
+}
+
+/// [`create_document`] with the document's text below the heading, in the
+/// same commit (ticket 380: the CLI's `rite docs new` and the MCP server's
+/// `create_document`). A body whose first line is already a `# ` heading has
+/// that line replaced by the one worked out here, so an ADR's number is
+/// always right and the heading never appears twice.
+pub fn create_document_with(
+    root: &Path,
+    folder: &str,
+    title: &str,
+    body: Option<&str>,
+) -> Result<(String, Restored)> {
     let folder = plain(folder)?;
     if !folder.is_empty() && !root.join(&folder).is_dir() {
         bail!("{folder} isn't a folder");
@@ -664,8 +746,9 @@ pub fn create_document(root: &Path, folder: &str, title: &str) -> Result<(String
     if full.exists() {
         bail!("{path} is already there");
     }
+    let text = with_heading(&heading, body.unwrap_or_default());
     let done = commit_change(root, &format!("new: {path}"), || {
-        fs::write(&full, format!("# {heading}\n\n")).with_context(|| format!("writing {path}"))?;
+        fs::write(&full, &text).with_context(|| format!("writing {path}"))?;
         Ok(vec![PathBuf::from(&path)])
     })?;
     Ok((path, done))
@@ -989,5 +1072,58 @@ mod tests {
             "already there"
         );
         assert!(create_document(&root, "", "🎉").is_err());
+    }
+
+    #[test]
+    fn a_new_document_can_have_its_text_in_the_same_commit() {
+        // Ticket 380.
+        let (_dir, root) = repo();
+        let commits = || git::count_commits(&root, &["HEAD"]).unwrap();
+        let before = commits();
+        fs::create_dir_all(root.join("adr/rfc")).unwrap();
+        // A body with its own heading: the numbered one replaces it.
+        let (path, done) = create_document_with(
+            &root,
+            "adr/rfc",
+            "Hosted sync",
+            Some("# My heading\r\n\r\n## Context\r\n\r\nWhy.\r\n"),
+        )
+        .unwrap();
+        assert_eq!(path, "adr/rfc/0001-hosted-sync.md");
+        assert_eq!(
+            crate::eol::read(root.join(&path)).unwrap(),
+            "# RFC 0001: Hosted sync\n\n## Context\n\nWhy.\n"
+        );
+        assert!(done.pushed, "pushed straight to main");
+        assert_eq!(commits(), before + 1, "one commit");
+        // No heading of its own: the body goes below the one made here.
+        let (doc, _) = create_document_with(&root, "", "Notes", Some("Plain text.")).unwrap();
+        assert_eq!(
+            crate::eol::read(root.join(&doc)).unwrap(),
+            "# Notes\n\nPlain text.\n"
+        );
+    }
+
+    #[test]
+    fn replace_checks_a_version_only_when_given_one() {
+        // Ticket 380.
+        let (_dir, root) = repo();
+        let opened = version(&crate::eol::read(root.join("README.md")).unwrap());
+        replace(&root, "README.md", "# P\r\n\r\nOne.\r\n", None).unwrap();
+        assert_eq!(
+            crate::eol::read(root.join("README.md")).unwrap(),
+            "# P\n\nOne.\n",
+            "written LF"
+        );
+        let err = replace(&root, "README.md", "# P\n\nTwo.\n", Some(&opened)).unwrap_err();
+        assert!(
+            err.to_string().contains("changed since you opened it"),
+            "{err}"
+        );
+        assert!(
+            replace(&root, "README.md", "# P\n\nOne.\n", None).is_err(),
+            "unchanged"
+        );
+        assert!(replace(&root, "nope.md", "x", None).is_err(), "missing");
     }
 }
