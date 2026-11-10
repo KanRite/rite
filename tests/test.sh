@@ -569,6 +569,10 @@ assert "RITE_SYNC=0 leaves the clone alone" \
 assert "cloud ticket numbering explains it needs a plan, and creates nothing" \
   bash -c "$(declare -f in_a); two='${two}'; AMD='${AMD}'; RITE_TICKET_NUMBERING=cloud in_a new 'Cloudy' --no-edit 2>&1 | grep -q 'needs a KanRite plan' \
     && ! ls '${two}'/a/tasks/backlog/*cloudy* >/dev/null 2>&1"
+assert "a push to a branch that already tracks origin doesn't say it set up tracking (ticket 377)" \
+  bash -c "$(declare -f in_a); two='${two}'; AMD='${AMD}'; out=\"\$(in_a new 'Quiet push' --no-edit 2>&1)\" \
+    && [ -z \"\$(git -C '${two}/a' log origin/main..main --oneline)\" ] \
+    && ! printf '%s' \"\$out\" | grep -q 'set up to track'"
 rm -rf "${two}"
 
 echo "a ticket's repository (tickets 101, 107):"
