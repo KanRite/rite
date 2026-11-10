@@ -194,7 +194,7 @@ and on Linux adds the board to your application menu. To choose the folder
 or pin a version, pass them after `bash -s --`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/kanrite/rite/v5/install.sh | bash -s -- --dir ~/.local/bin --version v5.1.0
+curl -fsSL https://raw.githubusercontent.com/kanrite/rite/v5/install.sh | bash -s -- --dir ~/.local/bin --version v5.2.0
 ```
 
 If your system isn't one KanRite runs on, the installer says why and
@@ -214,7 +214,7 @@ new terminal to use it), puts **KanRite** in the Start menu and lists it in
 version:
 
 ```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/kanrite/rite/v5/install.ps1))) -Version v5.1.0
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/kanrite/rite/v5/install.ps1))) -Version v5.2.0
 ```
 
 The first start of a download may bring up Windows' "Windows protected your
