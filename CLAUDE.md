@@ -283,6 +283,25 @@ redundant. Their history is in git if it is ever wanted again.
   -0`). Preferences → AI command shows the Claude Code command and points
   at `rite mcp setup`.
 - `crates/rite-lib/src/names.rs` — **names are compared without case** (ticket 338): `names::same` is the one comparison for project and repository names (the registry's `find`/`find_near`/`remove`, `.current-project`, `rite project use`, the trust record, `set_project`), `folder_named`/`find_folder` find a folder by it, so `KanRite-tickets` beside `kanrite-documents` works on a case-sensitive disk, and two folders or registry entries that differ only in case are refused (`Registry::add`, `init`, `join`, `pick`) or warned about (`rite project`), never picked between. Names stay as typed; nothing is lowercased on disk, and `rite project use` records the project's own spelling. Whether a disk is case-sensitive varies per folder or volume, so no OS check is made. rite-ui-model's `same_name` is the page's copy (rite-ui's tests check they agree). `project_trust`'s key is the board's path with one kind of slash and no case on Windows (an entry under the raw path is still read).
+- `crates/rite-lib/src/doctor.rs` — `rite doctor [--fix] [--json]` (ticket
+  351): checks of this machine, each a `Finding` (`check` id, `Status`
+  ok/warning/problem, `title`, `detail`, `fix: {command, automatic}`), one
+  ok line per check that finds nothing. `check(&Machine)` reads only;
+  `fix(&Machine)` changes **only rite's own files** (registry, `ui.hidden-
+  projects`/`ui.folded-graphs` in `config`, `project-trust`), never a
+  repository or another tool's config. Checks: registry lines whose folder
+  is gone (read raw, since `Registry::load_from` hides them) or isn't a
+  clone; a repository with a board that isn't registered (candidates from
+  the hidden/folded lists, project trust, and two levels under the parent
+  of each registered project folder; scratch and archived skipped), which
+  `fix` registers locally with its documents and declared clones beside
+  it (no commit, unlike `rite register`); declared clones beside a
+  registered board not registered; hidden/folded/trust entries for folders
+  that are gone. `Machine` (config and temp folders) keeps tests off the
+  environment. The CLI (`crates/rite-cli/src/doctor.rs`) adds the MCP check
+  (`mcp::old_entries`, fix by hand: `rite mcp setup --fix`), prints or
+  `--json`s (`checks`, `fixed`, `problems`, `warnings`), and exits 1 while
+  a problem is left (`process::exit`, no `rite:` error line).
 - `crates/rite-lib/src/project_trust.rs` — a per-machine, trust-on-first-use
   check that a board's declared `project` hasn't changed unexpectedly since
   `rite` last saw it.
