@@ -1314,6 +1314,42 @@ assert "--no-edit is accepted alongside a title" \
 assert "--edit and --no-edit conflict" \
   bash -c "! '${AMD}' new 'Both' --edit --no-edit"
 
+echo "rite new without an editor: body, epic, priority and points (ticket 382):"
+nb="$(mktemp -d)"
+in_nb() { (cd "${nb}" && "${AMD}" "$@"); }
+( cd "${nb}" && git init -q && git config user.email t@t.co && git config user.name t \
+  && RITE_YES=1 "${AMD}" init nobody --local-only >/dev/null 2>&1 && git add -A && git commit -qm init \
+  && "${AMD}" group epic launch >/dev/null 2>&1 && "${AMD}" group sprint s1 >/dev/null 2>&1 )
+printf '## Notes\n\nWritten in a file.\n' > "${nb}/body.md"
+assert "--body-file puts the file below the frontmatter" \
+  bash -c "$(declare -f in_nb); nb='${nb}'; AMD='${AMD}'; in_nb new 'From a file' --body-file '${nb}/body.md' >/dev/null 2>&1 \
+    && f='${nb}'/tasks/backlog/001-from-a-file.md && grep -q '^title: \"From a file\"' \"\$f\" && grep -qx 'Written in a file.' \"\$f\" \
+    && ! grep -q '^## Acceptance criteria' \"\$f\""
+assert "--body-file - reads it from stdin" \
+  bash -c "$(declare -f in_nb); nb='${nb}'; AMD='${AMD}'; printf 'From stdin.\n' | in_nb new 'Piped' --body-file - >/dev/null 2>&1 \
+    && grep -qx 'From stdin.' '${nb}'/tasks/backlog/002-piped.md"
+assert "--epic, --priority and --points with a body make one commit, leaving nothing dirty" \
+  bash -c "$(declare -f in_nb); nb='${nb}'; AMD='${AMD}'; before=\"\$(git -C '${nb}' rev-list --count HEAD)\" \
+    && out=\"\$(printf 'All here.\n' | in_nb new 'All at once' --body-file - --epic launch --priority high --points 3 2>&1)\" \
+    && echo \"\$out\" | grep -q 'created backlog/launch/003-all-at-once.md' \
+    && f='${nb}'/tasks/backlog/launch/003-all-at-once.md && grep -q '^priority: \"high\"' \"\$f\" && grep -q '^points: \"3\"' \"\$f\" \
+    && grep -q '^epic: \"launch\"' \"\$f\" && grep -qx 'All here.' \"\$f\" \
+    && [ \"\$(git -C '${nb}' rev-list --count HEAD)\" = \"\$((before + 1))\" ] \
+    && git -C '${nb}' log -1 --format=%s | grep -qxF 'new: 003 \"All at once\"' \
+    && [ -z \"\$(git -C '${nb}' status --porcelain -- tasks .next-id)\" ]"
+assert "a bad value is refused before anything is written" \
+  bash -c "$(declare -f in_nb); nb='${nb}'; AMD='${AMD}'; ! in_nb new 'Bad points' --points 4 >/dev/null 2>&1 \
+    && ! in_nb new 'Bad priority' --priority urgent >/dev/null 2>&1 \
+    && ! in_nb new 'No such epic' --epic nowhere >/dev/null 2>&1 \
+    && in_nb new 'Unsized' --epic s1 2>&1 | grep -q 'needs points before it can go in s1' \
+    && ! ls '${nb}'/tasks/backlog | grep -q -e bad- -e no-such -e unsized \
+    && [ -z \"\$(git -C '${nb}' status --porcelain -- tasks .next-id)\" ]"
+assert "-e without a terminal says it was ignored" \
+  bash -c "$(declare -f in_nb); nb='${nb}'; AMD='${AMD}'; in_nb new 'Edit me' -e 2>&1 | grep -q 'needs a terminal; ignored (use --body-file)'"
+assert "rite new --help lists --body-file, --epic, --priority and --points" \
+  bash -c "h=\"\$('${AMD}' new --help)\"; for f in --body-file --epic --priority --points; do printf '%s' \"\$h\" | grep -q -- \"\$f\" || exit 1; done"
+rm -rf "${nb}"
+
 echo "quoting:"
 "${AMD}" new 'Fix the "quoted" thing' >/dev/null
 assert "a quote in the title is escaped, not left to break the frontmatter" \
@@ -3077,6 +3113,10 @@ assert "describe_group changes the description and commits it" \
   bash -c "grep -q '^description: \"Getting it out of the door\"' '${mcp}'/board/tasks/backlog/launch/_group.md \
     && git -C '${mcp}/board' log -1 --format=%s | grep -qxF 'group-describe: launch \"Getting it out of the door\"' \
     && [ -z \"\$(git -C '${mcp}/board' status --porcelain -- tasks)\" ]"
+rpc 8 create_ticket '{"title":"Sized wrong","points":"4"}' | in_mcp > "${mcp}/bad.out"
+assert "create_ticket refuses bad points before writing anything (ticket 382)" \
+  bash -c "grep -q '\"isError\":true' '${mcp}/bad.out' && grep -q 'invalid points' '${mcp}/bad.out' \
+    && ! ls '${mcp}'/board/tasks/backlog | grep -q sized-wrong && [ -z \"\$(git -C '${mcp}/board' status --porcelain -- tasks)\" ]"
 assert "an archived project's tickets can't be changed through rite mcp" \
   bash -c "cd '${mcp}/board' && echo 'archived = on' >> .settings && out=\$(printf '%s\\n' '{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"create_ticket\",\"arguments\":{\"title\":\"No\"}}}' | '${AMD}' mcp 2>/dev/null) && printf '%s' \"\$out\" | grep -q '\"isError\":true' && printf '%s' \"\$out\" | grep -q archived"
 rm -rf "${mcp}"

@@ -1248,7 +1248,7 @@ pub const DOING_SINCE: &str = "doing-since";
 /// The priority of a new ticket, and of one that doesn't say.
 pub const DEFAULT_PRIORITY: &str = "low";
 
-pub(crate) fn validate_priority(priority: &str) -> Result<()> {
+pub fn validate_priority(priority: &str) -> Result<()> {
     if PRIORITIES.contains(&priority) {
         return Ok(());
     }
@@ -1291,7 +1291,7 @@ fn text_has_triage(text: &str) -> bool {
 /// Empty (unsized) or one of `VALID_POINTS` — checked here so every write
 /// path (`set_points`, `apply_edit`) enforces it the same way, rather than
 /// each call site remembering to.
-fn validate_points(points: &str) -> Result<()> {
+pub fn validate_points(points: &str) -> Result<()> {
     if points.is_empty() || VALID_POINTS.contains(&points) {
         return Ok(());
     }
