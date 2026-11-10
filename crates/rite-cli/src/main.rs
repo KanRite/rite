@@ -300,7 +300,7 @@ enum Cmd {
         action: Option<ProjectAction>,
     },
     /// Create a task in backlog/ from a template
-    New(NewArgs),
+    New(Box<NewArgs>),
     /// Show all columns (the default command)
     Board {
         /// Only show tasks carrying this tag; -TAG leaves them out; repeatable
@@ -1027,11 +1027,25 @@ struct NewArgs {
     #[arg(short = 's', long = "set", value_name = "KEY=VALUE", value_parser = parse_key_value)]
     set: Vec<(String, String)>,
     /// Open the ticket body in $EDITOR, even when the title came from the CLI
-    #[arg(short, long)]
+    /// (needs a terminal; ignored, with a warning, without one)
+    #[arg(short, long, conflicts_with = "body_file")]
     edit: bool,
     /// Create the ticket from the template without opening an editor
     #[arg(long, conflicts_with = "edit")]
     no_edit: bool,
+    /// The ticket's body (everything below the frontmatter) from a file, or
+    /// `-` for stdin, instead of the template's: no editor needed
+    #[arg(long = "body-file", value_name = "PATH")]
+    body_file: Option<PathBuf>,
+    /// The epic or sprint to file it under, in the same commit
+    #[arg(long, value_name = "NAME")]
+    epic: Option<String>,
+    /// Its priority: low, medium, high or top (default: low)
+    #[arg(long, value_name = "PRIORITY")]
+    priority: Option<String>,
+    /// Its points: 1, 2, 3, 5, 8 or 13
+    #[arg(long, value_name = "POINTS")]
+    points: Option<String>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -1526,7 +1540,7 @@ fn run() -> Result<()> {
         Cmd::BacklogAlwaysShown { action } => cmd_backlog_always_shown(&board, action.as_deref()),
         Cmd::Register { .. } | Cmd::Deregister { .. } => unreachable!("handled above"),
         Cmd::Clone { name, all } => cmd_clone(&board, name.as_deref(), all),
-        Cmd::New(args) => cmd_new(&board, args),
+        Cmd::New(args) => cmd_new(&board, *args),
         Cmd::Board { tag } => render::columns(
             &board,
             &board.workflow().columns().collect::<Vec<_>>(),
@@ -4033,6 +4047,31 @@ fn cmd_new(board: &Board, args: NewArgs) -> Result<()> {
     for reference in &requires {
         board.find(reference)?;
     }
+    // Points, priority and epic too (ticket 382), so a bad value writes
+    // nothing rather than leaving an uncommitted ticket behind.
+    transition::check_new_ticket(
+        board,
+        args.points.as_deref().unwrap_or_default(),
+        args.priority.as_deref().unwrap_or_default(),
+        args.epic.as_deref(),
+        args.draft,
+        args.due.as_deref(),
+    )?;
+    // The body from a file or stdin (ticket 382), read up front: no editor,
+    // so it works where no terminal is.
+    let body_text = match &args.body_file {
+        Some(path) if path.as_os_str() == "-" => {
+            let mut text = String::new();
+            std::io::Read::read_to_string(&mut std::io::stdin(), &mut text)
+                .context("reading the body from stdin")?;
+            Some(text)
+        }
+        Some(path) => Some(
+            rite_lib::eol::read(path)
+                .with_context(|| format!("reading the body from {}", path.display()))?,
+        ),
+        None => None,
+    };
     // A bare `rite new` (or -i) fills the whole form in; otherwise only the
     // fields the chosen template needs and the arguments didn't supply.
     let full_form = args.interactive || args.title.is_none();
@@ -4177,10 +4216,14 @@ fn cmd_new(board: &Board, args: NewArgs) -> Result<()> {
     // creating it. Nothing is written until the editor exits, so abandoning
     // the edit leaves no half-made task behind.
     let edit = !args.no_edit && form::available() && (args.edit || full_form);
-    let body = if edit {
-        Some(form::body(&draft.body, OsStr::new(&editor_command()))?)
-    } else {
-        None
+    if args.edit && !form::available() {
+        // It used to be dropped without a word (ticket 382).
+        eprintln!("rite: -e needs a terminal; ignored (use --body-file)");
+    }
+    let body = match body_text {
+        Some(text) => Some(rite_lib::model::splice_body(&draft.body, &text)),
+        None if edit => Some(form::body(&draft.body, OsStr::new(&editor_command()))?),
+        None => None,
     };
 
     let note = if draft.branch.is_empty() {
@@ -4200,6 +4243,21 @@ fn cmd_new(board: &Board, args: NewArgs) -> Result<()> {
     let auto_commit = board_settings::load(board).auto_commit();
     let before = auto_commit.then(|| git::dirty_paths(board.repo_root()).unwrap_or_default());
     let created = draft.write(board, body)?;
+    // Points and priority (ticket 382), as `rite set` sets them: a priority
+    // given by hand is the ticket's own.
+    if let Some(points) = args.points.as_deref().filter(|p| !p.trim().is_empty()) {
+        created
+            .task
+            .set_points(created.task.hash()?, points.trim())?;
+    }
+    let priority_line = match args.priority.as_deref().filter(|p| !p.trim().is_empty()) {
+        Some(priority) => Some(rite_lib::auto_priority::set_by_hand(
+            board,
+            &created.task,
+            priority.trim(),
+        )?),
+        None => None,
+    };
     if let Some(due) = &args.due {
         created.task.set_due(created.task.hash()?, due)?;
     }
@@ -4215,22 +4273,42 @@ fn cmd_new(board: &Board, args: NewArgs) -> Result<()> {
     for line in requires_links(board, &created.task, &requires)? {
         println!("{line}");
     }
+    // Read before filing: the title comes from the file, which filing moves.
+    let (id, title) = (created.task.id_display(), created.task.title());
+    // Filed last (ticket 382): it moves the file, and every step above
+    // writes to it where it was made (the ticket 383 lesson).
+    let filed = match args
+        .epic
+        .as_deref()
+        .map(str::trim)
+        .filter(|e| !e.is_empty())
+    {
+        Some(epic) => {
+            let task = rite_lib::task::Task::from_path(&created.task.path, created.task.column)
+                .unwrap_or_else(|| created.task.clone());
+            board.set_epic(&task, Some(epic))?;
+            Some(epic.to_string())
+        }
+        None => None,
+    };
     transition::settle_priorities(board);
     // The same commit, push and replay-or-undo every other change gets
     // (ticket 102): a clash with a ticket someone else numbered at the same
     // moment is undone here, and fails, rather than reaching the remote.
-    let message = format!(
-        "new: {} \"{}\"",
-        created.task.id_display(),
-        created.task.title()
-    );
+    let message = format!("new: {id} \"{title}\"");
     if let Some(warning) = transition::commit_since(board, before, &message)? {
         eprintln!("rite: {warning}");
     }
-    for id in &created.linked {
-        println!("{id} now links to {}", created.task.id_display());
+    for other in &created.linked {
+        println!("{other} now links to {id}");
     }
-    println!("created {}/{name}{note}", created.task.column);
+    match &filed {
+        Some(epic) => println!("created {}/{epic}/{name}{note}", created.task.column),
+        None => println!("created {}/{name}{note}", created.task.column),
+    }
+    if let Some(line) = &priority_line {
+        println!("{line}");
+    }
     if let Some(moved) = &moved {
         println!("{moved}");
     }
