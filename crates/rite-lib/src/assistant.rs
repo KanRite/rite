@@ -106,7 +106,7 @@ pub fn tools() -> Vec<Tool> {
         Tool {
             name: "document",
             title: "Read a document",
-            description: "A document's markdown, by its path in the documents repository (as search_documents or start_page give it).",
+            description: "A document's markdown, by its path in the documents repository (as search_documents or start_page give it), and its `version` for edit_document.",
             read_only: true,
             input: json!({"type": "object", "properties": {
                 "path": {"type": "string"},
@@ -235,6 +235,30 @@ pub fn tools() -> Vec<Tool> {
             input: json!({"type": "object", "properties": {"ticket": reference, "epic": {"type": "string"}}, "required": ["ticket", "epic"]}),
         },
         Tool {
+            name: "create_document",
+            title: "Create a document",
+            description: "Make a document in a folder of a documents repository, as riteui's New document does, and commit and push it straight to main. In adr/adr and adr/rfc it takes the next number and its heading says so; a body's own top heading gives way to that one.",
+            read_only: false,
+            input: json!({"type": "object", "properties": {
+                "folder": {"type": "string", "description": "e.g. adr/adr, adr/rfc, docs; empty for the repository's top"},
+                "title": {"type": "string"},
+                "body": {"type": "string", "description": "Markdown below the heading"},
+                "repo": {"type": "string", "description": "The documents repository; the project's own when left out"}
+            }, "required": ["folder", "title"]}),
+        },
+        Tool {
+            name: "edit_document",
+            title: "Change a document",
+            description: "Replace a document's whole text, and commit and push it straight to main. Give the `version` `document` returned to refuse a document someone changed since you read it.",
+            read_only: false,
+            input: json!({"type": "object", "properties": {
+                "path": {"type": "string"},
+                "text": {"type": "string", "description": "The whole new markdown"},
+                "version": {"type": "string", "description": "From document; the file as it is now when left out"},
+                "repo": {"type": "string", "description": "The documents repository; the project's own when left out"}
+            }, "required": ["path", "text"]}),
+        },
+        Tool {
             name: "create_group",
             title: "Create an epic or sprint",
             description: "Make an epic or a (pending) sprint in a board's backlog, as `rite group epic`/`sprint` does, and commit it.",
@@ -272,6 +296,8 @@ pub fn call(name: &str, args: &Value) -> Result<Reply> {
         "my_work" => my_work_tool(),
         "search_documents" => search_documents(args),
         "document" => document_tool(args),
+        "create_document" => create_document_tool(args),
+        "edit_document" => edit_document_tool(args),
         "start_page" => start_page_tool(),
         "ideas" => ideas_tool(args),
         "idea" => idea_tool(args),
@@ -899,8 +925,43 @@ fn document_tool(args: &Value) -> Result<Reply> {
         .unwrap_or(&path)
         .to_string();
     let text = documents::read(root, &path)?;
-    let data = json!({"repo": name, "path": path, "content": text});
+    let version = documents_edit::version(&text);
+    let data = json!({"repo": name, "path": path, "content": text, "version": version});
     Ok(project.reply(format!("{name}/{path}\n\n{text}"), data))
+}
+
+/// `create_document` (ticket 380): `rite docs new`.
+fn create_document_tool(args: &Value) -> Result<Reply> {
+    let project = Project::open(Purpose::Write)?;
+    let (name, root) =
+        documents_edit::writable_source(project.own(), arg(args, "repo").as_deref())?;
+    let folder = arg(args, "folder").unwrap_or_default();
+    let folder = documents_edit::strip_source(&name, &folder).to_string();
+    let title = required(args, "title")?;
+    let body = arg(args, "body");
+    let (path, done) =
+        documents_edit::create_document_with(&root, &folder, &title, body.as_deref())?;
+    let text = documents::read(&root, &path)?;
+    let mut lines = vec![format!("created {name}/{path}"), done.message.clone()];
+    lines.extend(done.warning.iter().map(|w| format!("warning: {w}")));
+    let data = json!({"repo": name, "path": path, "version": documents_edit::version(&text), "pushed": done.pushed});
+    Ok(project.reply(lines.join("\n"), data))
+}
+
+/// `edit_document` (ticket 380): `rite docs edit`.
+fn edit_document_tool(args: &Value) -> Result<Reply> {
+    let project = Project::open(Purpose::Write)?;
+    let (name, root) =
+        documents_edit::writable_source(project.own(), arg(args, "repo").as_deref())?;
+    let path = required(args, "path")?;
+    let path = documents_edit::strip_source(&name, &path).to_string();
+    let text = arg(args, "text").context("`text` is needed")?;
+    let done = documents_edit::replace(&root, &path, &text, arg(args, "version").as_deref())?;
+    let now = documents::read(&root, &path)?;
+    let mut lines = vec![format!("saved {name}/{path}"), done.message.clone()];
+    lines.extend(done.warning.iter().map(|w| format!("warning: {w}")));
+    let data = json!({"repo": name, "path": path, "version": documents_edit::version(&now), "pushed": done.pushed});
+    Ok(project.reply(lines.join("\n"), data))
 }
 
 fn start_page_tool() -> Result<Reply> {

@@ -2577,6 +2577,43 @@ assert "rite docs pin keeps your own pins in the documents repository, pushed (t
 assert "...and rite docs unpin takes it off" \
   bash -c "${ix_fns}; in_ix docs unpin idp-documents/docs/guide.md | grep -q '^unpin:' \
     && ! test -e '${ix}/idp-documents/.agile-md-pins' && in_ix docs pins | grep -q 'nothing pinned'"
+mkdir -p "${ix}/idp-documents/adr/rfc"
+printf '# Ignored heading\n\n## Context\n\nFrom the command line.\n' > "${ix}/rfc-body.md"
+assert "rite docs new makes a numbered RFC with its text, one commit pushed (ticket 380)" \
+  bash -c "${ix_fns}; out=\$(in_ix docs new adr/rfc 'Hosted sync' --body-file '${ix}/rfc-body.md' 2>&1) \
+    && printf '%s' \"\$out\" | grep -qx 'idp-documents/adr/rfc/0001-hosted-sync.md' \
+    && f='${ix}/idp-documents/adr/rfc/0001-hosted-sync.md' && head -1 \"\$f\" | grep -qx '# RFC 0001: Hosted sync' \
+    && grep -qx 'From the command line.' \"\$f\" && ! grep -q 'Ignored heading' \"\$f\" \
+    && git -C '${ix}/origin-documents.git' log -1 --format=%s main | grep -qx 'new: adr/rfc/0001-hosted-sync.md' \
+    && [ -z \"\$(git -C '${ix}/idp-documents' status --porcelain)\" ]"
+assert "rite docs edit replaces a document's text from stdin, pushed, and refuses a stale --version" \
+  bash -c "${ix_fns}; f='${ix}/idp-documents/adr/rfc/0001-hosted-sync.md' \
+    && printf '# RFC 0001: Hosted sync\n\nRevised.\n' | in_ix docs edit adr/rfc/0001-hosted-sync.md --body-file - >/dev/null 2>&1 \
+    && grep -qx 'Revised.' \"\$f\" \
+    && git -C '${ix}/origin-documents.git' log -1 --format=%s main | grep -qx 'edit: adr/rfc/0001-hosted-sync.md' \
+    && printf 'x\n' | in_ix docs edit adr/rfc/0001-hosted-sync.md --body-file - --version 0000000000000000 2>&1 | grep -q 'changed since you opened it' \
+    && grep -qx 'Revised.' \"\$f\""
+assert "...and with no text and no terminal, says how to give it" \
+  bash -c "${ix_fns}; in_ix docs edit README.md 2>&1 | grep -q 'give the new text with --body-file'"
+assert "rite docs --help no longer sends people to plain git" \
+  bash -c "! '${AMD}' docs --help | grep -q 'like any clone' && '${AMD}' docs --help | grep -q 'edit'"
+docrpc() { printf '{"jsonrpc":"2.0","id":%s,"method":"tools/call","params":{"name":"%s","arguments":%s}}\n' "$1" "$2" "$3"; }
+{
+  docrpc 1 create_document '{"folder":"docs","title":"From the assistant","body":"Written by MCP."}'
+  docrpc 2 document '{"path":"docs/from-the-assistant.md"}'
+} | in_ix mcp 2>/dev/null > "${ix}/mcp-docs.out"
+ver="$(grep '"id":2,' "${ix}/mcp-docs.out" | grep -o '"version":"[0-9a-f]*"' | cut -d'"' -f4)"
+{
+  docrpc 3 edit_document "{\"path\":\"docs/from-the-assistant.md\",\"text\":\"# From the assistant\\n\\nEdited by MCP.\\n\",\"version\":\"${ver}\"}"
+  docrpc 4 edit_document "{\"path\":\"docs/from-the-assistant.md\",\"text\":\"# Stale\\n\",\"version\":\"${ver}\"}"
+} | in_ix mcp 2>/dev/null >> "${ix}/mcp-docs.out"
+assert "the MCP server's create_document and edit_document commit and push documents (ticket 380)" \
+  bash -c "f='${ix}/idp-documents/docs/from-the-assistant.md' && grep -qx 'Edited by MCP.' \"\$f\" \
+    && [ -n '${ver}' ] && ! grep '\"id\":[123],' '${ix}/mcp-docs.out' | grep -q '\"isError\":true' \
+    && git -C '${ix}/origin-documents.git' log -2 --format=%s main | grep -qx 'new: docs/from-the-assistant.md' \
+    && git -C '${ix}/origin-documents.git' log -1 --format=%s main | grep -qx 'edit: docs/from-the-assistant.md'"
+assert "...and edit_document refuses a version that's out of date" \
+  bash -c "grep '\"id\":4,' '${ix}/mcp-docs.out' | grep -q '\"isError\":true' && grep '\"id\":4,' '${ix}/mcp-docs.out' | grep -q 'changed since you opened it'"
 assert "rite group close ends a sprint: the unstarted go back, a report is pushed to documents (ticket 052)" \
   bash -c "${ix_fns}; in_ix group sprint s9 --days 5 >/dev/null \
     && in_ix new 'Close me' --no-edit >/dev/null && in_ix new 'Left behind' --no-edit >/dev/null \

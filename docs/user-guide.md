@@ -492,7 +492,14 @@ disagree.
   are yours, kept in the documents repository so they follow you to every
   machine (`rite docs pins`, `rite docs pin <repository>/<path>`, `rite docs
   unpin`). Every change is pushed straight to
-  main rather than reviewed in pull requests. A
+  main rather than reviewed in pull requests. From the command line,
+  `rite docs new <folder> <title> [--body-file F]` makes one (numbered in
+  `adr/adr` and `adr/rfc`, its heading worked out for it) and prints its
+  path, and `rite docs edit <path> --body-file F` replaces a document's
+  text (`-` reads stdin; with no `--body-file`, `$EDITOR` in a terminal);
+  `--version` refuses a document changed since then, and `--repo` picks
+  the shared repository. AI assistants have the same through `rite mcp`
+  (`create_document`, `edit_document`). A
   documents repository the whole organisation shares (standards, the
   handbook) can sit beside it: name it in Admin, or with
   `rite shared-documents <repository>`, and clone it next to the project's
