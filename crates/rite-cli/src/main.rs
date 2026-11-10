@@ -1101,6 +1101,13 @@ enum GroupCmd {
         #[arg(value_name = "NEW_NAME")]
         to: String,
     },
+    /// Change an epic's or sprint's description (one line; empty clears it)
+    Describe {
+        #[arg(value_name = "NAME")]
+        name: String,
+        #[arg(value_name = "DESCRIPTION")]
+        description: String,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -2717,6 +2724,16 @@ fn cmd_group(board: &Board, command: GroupCmd) -> Result<()> {
             with_auto_commit(board, "group-rename", &name, &to, || {
                 board.rename_group(&name, &to)?;
                 println!("renamed {name} -> {}", to.trim());
+                Ok(())
+            })
+        }
+        GroupCmd::Describe { name, description } => {
+            with_auto_commit(board, "group-describe", &name, description.trim(), || {
+                board.set_group_description(&name, &description)?;
+                match description.trim() {
+                    "" => println!("{name} has no description now"),
+                    text => println!("{name}: {text}"),
+                }
                 Ok(())
             })
         }

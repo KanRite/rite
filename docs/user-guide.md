@@ -641,6 +641,7 @@ rite group                              # tickets and points per epic and sprint
 rite group empty checkout               # every ticket in it, back to backlog/ at once
 rite group empty checkout --to todo     # or on to todo, keeping the epic's name
 rite group rename checkout payments     # the folder and every ticket's epic
+rite group describe payments "paying, start to end"   # its one-line description
 rite group backfill sprint-1 --points 5 # top up a running sprint from the backlog
 rite group close sprint-1               # end it: read-only, and a report in the documents
 rite group delete payments              # once every ticket in it is done (or moved out)
