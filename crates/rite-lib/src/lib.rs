@@ -23,6 +23,7 @@ pub mod compat;
 pub mod create;
 pub mod current_project;
 pub mod doc_pins;
+pub mod doctor;
 pub mod documents;
 pub mod documents_edit;
 pub mod eol;
