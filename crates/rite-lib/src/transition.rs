@@ -503,6 +503,47 @@ pub struct TicketFields {
     pub linked_from: Vec<(String, crate::links::LinkType)>,
 }
 
+/// What a new ticket's points, priority and epic would be refused for, checked
+/// before anything is written (ticket 382): writing first and checking after
+/// left an uncommitted ticket behind when a value was wrong. Mirrors the
+/// rules `set_points`, `set_priority` and `Board::set_epic` apply: points
+/// from `VALID_POINTS`, a priority from `PRIORITIES`, and an epic or sprint
+/// that exists in the backlog, isn't started or closed, and, for a sprint,
+/// gets a sized ticket that isn't a draft. `due` is refused with an epic.
+pub fn check_new_ticket(
+    board: &Board,
+    points: &str,
+    priority: &str,
+    epic: Option<&str>,
+    draft: bool,
+    due: Option<&str>,
+) -> Result<()> {
+    crate::task::validate_points(points.trim())?;
+    if !priority.trim().is_empty() {
+        crate::task::validate_priority(priority.trim())?;
+    }
+    let Some(epic) = epic.map(str::trim).filter(|e| !e.is_empty()) else {
+        return Ok(());
+    };
+    if !board.epics_in(Column::Backlog)?.iter().any(|e| e == epic) {
+        bail!("no epic or sprint called {epic} in the backlog (rite group lists them)");
+    }
+    let group = board.group(epic)?;
+    if !group.accepts_changes() {
+        bail!("{epic} {}: it takes no new tickets", group.locked_word());
+    }
+    if group.is_sprint() {
+        if points.trim().is_empty() {
+            bail!("the ticket needs points before it can go in {epic}");
+        }
+        if draft {
+            bail!("a draft can't go in a sprint: {epic}");
+        }
+    }
+    board.refuse_due_in_epic("the new ticket", Some(epic), due)?;
+    Ok(())
+}
+
 /// Make a ticket the way `rite new` does: render it from the templates, write
 /// it into `backlog/`, size it, file it under its epic, and auto-commit.
 /// `outcome.dest` is where it landed.
@@ -511,6 +552,18 @@ pub fn create_ticket(board: &Board, fields: &TicketFields) -> Result<Outcome> {
     for reference in fields.requires.iter().chain(&fields.required_by) {
         board.find(reference)?;
     }
+    let draft_tag = fields
+        .tags
+        .iter()
+        .any(|t| t.eq_ignore_ascii_case(crate::task::DRAFT_TAG));
+    check_new_ticket(
+        board,
+        &fields.points,
+        &fields.priority,
+        fields.epic.as_deref(),
+        draft_tag,
+        None,
+    )?;
     for (reference, kind) in &fields.linked_from {
         crate::links::can_link_to_new(&board.find(reference)?, *kind)?;
     }
