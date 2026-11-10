@@ -1722,7 +1722,9 @@ fn run() -> Result<()> {
             more,
         } => {
             let pairs = set_pairs(field, value, more)?;
-            let task = resolve(
+            // Mutable: filing under an epic moves the file, and the fields
+            // after it must be set on the moved ticket (ticket 383).
+            let mut task = resolve(
                 &board,
                 Some(task),
                 "set",
@@ -1767,8 +1769,15 @@ fn run() -> Result<()> {
                         // file, and the sprint rules live there.
                         "epic" => {
                             let epic = (!value.is_empty()).then_some(value.as_str());
-                            board.set_epic(&task, epic)?;
+                            let moved = board.set_epic(&task, epic)?;
                             println!("{} filed under {}", task.id_display(), display(value));
+                            // Read it back from where it went (ticket 383):
+                            // the next field, the pairing and the due-date
+                            // check all write to the file.
+                            task = rite_lib::task::Task::from_path(&moved, task.column)
+                                .with_context(|| {
+                                    format!("reading {} after filing it", moved.display())
+                                })?;
                         }
                         "order" => {
                             let rank: f64 = value
