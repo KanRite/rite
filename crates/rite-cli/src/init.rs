@@ -9,6 +9,12 @@
 //! kanrite-documents' ADR 0007 (it was PR-reviewed before). (Board
 //! settings live in the tickets repository, ticket 111.) Both get the same
 //! branch protection: no force-push or deletion of main (ticket 174).
+//!
+//! A third sibling, `{project}-claude.md`, holds the project's `CLAUDE.md`
+//! the same way (ticket 396): created by default, `--no-claude` skips it,
+//! never registered (it has no board). A one-line `CLAUDE.md` beside the
+//! three imports it, since Claude Code reads only the directory it starts in
+//! and its parents.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -24,7 +30,7 @@ use rite_lib::{board_settings, git, names, registry::Registry};
 
 use rite_lib::github;
 
-pub fn run(project: String, local_only: bool, org: Option<String>) -> Result<()> {
+pub fn run(project: String, local_only: bool, org: Option<String>, claude: bool) -> Result<()> {
     board_settings::validate_project_name(&project)?;
 
     if local_only {
@@ -50,6 +56,11 @@ pub fn run(project: String, local_only: bool, org: Option<String>) -> Result<()>
     // included, lives in the tickets repository (ticket 111).
     let tickets = init_tickets(&base, &project, org.as_deref())?;
     let documents = init_documents(&base, &project, org.as_deref())?;
+    let claude_repo = if claude {
+        Some(init_claude(&base, &project, org.as_deref())?)
+    } else {
+        None
+    };
     // An archived project comes back (ticket 263).
     bring_back(&base, &tickets)?;
 
@@ -61,6 +72,12 @@ pub fn run(project: String, local_only: bool, org: Option<String>) -> Result<()>
     println!("  documents: {}", documents.display());
     if let Some(url) = git::remote_url(&documents) {
         println!("              {url}");
+    }
+    if let Some(claude_repo) = &claude_repo {
+        println!("  claude.md: {}", claude_repo.display());
+        if let Some(url) = git::remote_url(claude_repo) {
+            println!("              {url}");
+        }
     }
     crate::project::keep_existing(&base, &project)
 }
@@ -146,6 +163,85 @@ fn init_documents(base: &Path, project: &str, org: Option<&str>) -> Result<PathB
 
     register(&target)?;
     Ok(target)
+}
+
+/// The folder, and GitHub repository, holding a project's `CLAUDE.md`
+/// (ticket 396). Lowercase like `-tickets` and `-documents`, and carrying the
+/// project name so one person or organisation can have many projects.
+pub(crate) fn claude_repo_name(project: &str) -> String {
+    format!("{project}-claude.md")
+}
+
+/// Creates or connects `{project}-claude.md`: a repository holding one file,
+/// `CLAUDE.md`, shared and committed like documents (straight to main). Not
+/// registered: it has no board, so riteui would list it empty. Also writes
+/// the `CLAUDE.md` beside the siblings that imports it ([`write_claude_stub`]).
+fn init_claude(base: &Path, project: &str, org: Option<&str>) -> Result<PathBuf> {
+    let name = claude_repo_name(project);
+    let target = names::folder_named(base, &name)?.unwrap_or_else(|| base.join(&name));
+    let full_name = format!("{}/{name}", owner_for(project, org));
+
+    let created_new = if target.exists() {
+        warn_if_already_present(&target)?;
+        unarchive_on_github(&target)?;
+        false
+    } else if clone_or_create(base, &full_name, &target)? {
+        git::set_head_branch(&target, "main")?;
+        true
+    } else {
+        false
+    };
+
+    scaffold_claude(&target, project)?;
+
+    if created_new {
+        write_gitattributes(&target)?;
+        git::commit_all(&target, &format!("Initialise {project} CLAUDE.md"))?;
+        git::push(&target)?;
+        warn_if_protection_unavailable(&full_name, github::protect_main(&full_name)?);
+    }
+
+    write_claude_stub(base, project)?;
+    Ok(target)
+}
+
+/// The starting `CLAUDE.md`: what is particular to this project, and where
+/// the shared workflow rules live. Left alone if it is there already.
+fn scaffold_claude(target: &Path, project: &str) -> Result<()> {
+    let file = target.join("CLAUDE.md");
+    if !file.exists() {
+        std::fs::write(
+            &file,
+            format!(
+                "# {project}\n\n\
+                 Guidance for Claude Code (claude.ai/code) when working on {project}. This file is \
+                 the `{project}-claude.md` repository: edit it, commit it and push it like any \
+                 other repository.\n\n\
+                 ## Project\n\n\
+                 - Tickets: `{project}-tickets`, a KanRite board. Change it with `rite`, `riteui` \
+                 or the `kanrite` MCP tools, not by editing files.\n\
+                 - Documents: `{project}-documents` (ADRs, RFCs, docs, ideas).\n\n\
+                 Shared workflow rules (branches, commits, tickets, pull requests) are in the \
+                 `kanrite` skill, not here. Put only what is particular to {project} in this \
+                 file.\n"
+            ),
+        )
+        .with_context(|| format!("writing {}", file.display()))?;
+    }
+    Ok(())
+}
+
+/// `CLAUDE.md` in the project directory (beside the repositories), importing
+/// the one in `{project}-claude.md`: Claude Code loads a `CLAUDE.md` only
+/// from the directory it starts in and its parents, never from a sibling.
+/// An existing file is somebody's and is left alone.
+pub(crate) fn write_claude_stub(base: &Path, project: &str) -> Result<()> {
+    let stub = base.join("CLAUDE.md");
+    if stub.symlink_metadata().is_err() {
+        std::fs::write(&stub, format!("@{}/CLAUDE.md\n", claude_repo_name(project)))
+            .with_context(|| format!("writing {}", stub.display()))?;
+    }
+    Ok(())
 }
 
 /// A new tickets or documents repository's `.gitattributes` (ticket 277):
@@ -572,6 +668,44 @@ mod tests {
         assert!(
             !target.join(".settings").exists(),
             "settings live in the tickets repository now (ticket 111)"
+        );
+    }
+
+    #[test]
+    fn the_claude_repository_is_named_for_the_project() {
+        assert_eq!(claude_repo_name("acme-app"), "acme-app-claude.md");
+    }
+
+    #[test]
+    fn scaffold_claude_writes_claude_md_and_never_overwrites_it() {
+        let dir = tempfile::tempdir().unwrap();
+        scaffold_claude(dir.path(), "proj").unwrap();
+        let written = std::fs::read_to_string(dir.path().join("CLAUDE.md")).unwrap();
+        assert!(written.starts_with("# proj\n"), "{written}");
+        assert!(written.contains("`kanrite` skill"), "{written}");
+
+        std::fs::write(dir.path().join("CLAUDE.md"), "mine\n").unwrap();
+        scaffold_claude(dir.path(), "proj").unwrap();
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join("CLAUDE.md")).unwrap(),
+            "mine\n"
+        );
+    }
+
+    #[test]
+    fn the_stub_imports_the_claude_repository_and_leaves_an_existing_file_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        write_claude_stub(dir.path(), "proj").unwrap();
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join("CLAUDE.md")).unwrap(),
+            "@proj-claude.md/CLAUDE.md\n"
+        );
+
+        std::fs::write(dir.path().join("CLAUDE.md"), "mine\n").unwrap();
+        write_claude_stub(dir.path(), "proj").unwrap();
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join("CLAUDE.md")).unwrap(),
+            "mine\n"
         );
     }
 

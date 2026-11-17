@@ -571,6 +571,18 @@ redundant. Their history is in git if it is ever wanted again.
   command for "inside a repo" — it skips all of the above (tickets board
   only, no documents sibling, no protection) and just scaffolds here, the
   way bare `rite init` always has.
+  **A third sibling, `<project>-claude.md`** (ticket 396, default on,
+  `--no-claude` skips it, `--local-only` never makes it): a repository
+  holding one file, `CLAUDE.md` (`init_claude`/`scaffold_claude`: project-
+  specific text only, the shared workflow rules being the `kanrite` skill's;
+  an existing file is never overwritten). Same creation path and direct
+  commits to main as documents, with the same protection; **not registered**
+  (it has no board, so riteui would list it empty, and `project_siblings`
+  already skips it). `write_claude_stub` also writes `<project dir>/CLAUDE.md`
+  containing `@<project>-claude.md/CLAUDE.md` (never over an existing file),
+  because Claude Code reads a `CLAUDE.md` only from its start folder and the
+  ones above it, never a sibling. The repository name is lowercase and
+  carries the project name, so one owner can have many projects.
   **Both forms record whoever ran it as a user** (ticket 090,
   `add_first_user`): git's `user.name <user.email>` (`User::from_git`) into
   the tickets `.settings`'s `users`. A brand-new repository's initial
@@ -602,7 +614,10 @@ redundant. Their history is in git if it is ever wanted again.
   commit is ours — don't reuse that pattern on a clone with real work in
   it. Any failure before the push lands removes the directories that run
   created, so a retry starts clean. Reuses `init`'s `owner_for` and
-  `register`.
+  `register`. **Then, best effort** (ticket 396, `clone_claude`): clones
+  `<project>-claude.md` if the remote has one and writes the stub; a project
+  made before it existed, or with `--no-claude`, quietly gets neither, and
+  nothing here can fail a join that has landed.
 - `crates/rite-cli/src/github.rs` — `protect_main(full_name, require_review)`:
   the only thing that shells out to `gh api` rather than plain `gh repo`/
   `git`. Needs the branch to exist first (protection is set after the
