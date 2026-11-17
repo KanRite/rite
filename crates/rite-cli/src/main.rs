@@ -152,7 +152,11 @@ if it's still empty — nothing lost, nothing left behind.
 `rite init <project>` creates a private `<project>-tickets` GitHub repository
 (under the GitHub organisation or personal account named <project> — pass
 --org to use a different owner), clones it as a child of the current
-directory, scaffolds the board inside it, and registers it. Must be run
+directory, scaffolds the board inside it, and registers it. It does the same
+for `<project>-documents` (ADRs, RFCs, docs, ideas) and for
+`<project>-claude.md`, a repository holding the project's CLAUDE.md, with a
+CLAUDE.md beside the three that imports it so Claude Code started there reads
+it (`--no-claude` skips that one). Must be run
 from a plain directory, never from inside an existing git repository —
 `rite init <project> --local-only` scaffolds the board in the repository
 you're standing in instead, with no network and nothing created remotely,
@@ -260,10 +264,11 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Cmd {
-    /// Create a project's tickets and documents repositories
+    /// Create a project's tickets, documents and CLAUDE.md repositories
     ///
-    /// Creates or connects {project}-tickets and {project}-documents and
-    /// records you as one of the project's users
+    /// Creates or connects {project}-tickets, {project}-documents and
+    /// {project}-claude.md (holding the project's CLAUDE.md; --no-claude
+    /// skips it) and records you as one of the project's users
     Init {
         /// The project's declared identity — cannot be changed once set
         #[arg(value_name = "PROJECT")]
@@ -276,6 +281,10 @@ enum Cmd {
         /// (default: the project name itself)
         #[arg(long, value_name = "ORG")]
         org: Option<String>,
+        /// Don't create the {project}-claude.md repository and its
+        /// CLAUDE.md
+        #[arg(long)]
+        no_claude: bool,
     },
     /// Join an existing project
     ///
@@ -1389,9 +1398,10 @@ fn run() -> Result<()> {
         project,
         local_only,
         org,
+        no_claude,
     } = command
     {
-        return init::run(project, local_only, org);
+        return init::run(project, local_only, org, !no_claude);
     }
     if let Cmd::Join { project, org } = command {
         return join::run(project, org);
