@@ -93,7 +93,7 @@ plain_dir="$(mktemp -d)"
 ( cd "${plain_dir}" && git init -q widgets-documents \
   && cd widgets-documents && git config user.email t@t.co && git config user.name t )
 assert "rite init <project> works from a plain, non-git directory" \
-  bash -c "cd '${plain_dir}' && '${AMD}' init widgets >/dev/null && test -d '${plain_dir}/widgets-tickets/tasks/backlog'"
+  bash -c "cd '${plain_dir}' && '${AMD}' init widgets --no-claude >/dev/null && test -d '${plain_dir}/widgets-tickets/tasks/backlog'"
 assert "the found-locally tickets repo's own board records the project" \
   bash -c "grep -q '^project = widgets\$' '${plain_dir}/widgets-tickets/.settings'"
 assert "the found-locally documents repo is scaffolded, not a board" \
@@ -107,7 +107,7 @@ assert "...in a commit of its own, since the repository already existed" \
   bash -c "[ \"\$(git -C '${plain_dir}/widgets-tickets' log -1 --format=%s)\" = 'init: add t <t@t.co> to users' ]"
 assert "running init again doesn't list you twice or commit again" \
   bash -c "cd '${plain_dir}' && before=\"\$(git -C widgets-tickets rev-parse HEAD)\" \
-    && '${AMD}' init widgets >/dev/null 2>&1 \
+    && '${AMD}' init widgets --no-claude >/dev/null 2>&1 \
     && [ \"\$(git -C widgets-tickets rev-parse HEAD)\" = \"\${before}\" ] \
     && [ \"\$(grep -c '^users = ' widgets-tickets/.settings)\" -eq 1 ]"
 # Deregistering both proves init registered them and cleans up the registry
@@ -122,7 +122,7 @@ assert "rite init registered the documents repo" \
 ( cd "${plain_dir}/widgets-tickets" && printf 'archived = on\n' >> .settings \
   && git add .settings && git commit -q -m 'settings: archived on' )
 assert "rite init brings back an archived project whose clones are here" \
-  bash -c "cd '${plain_dir}' && out=\$('${AMD}' init widgets 2>&1) && echo \"\$out\" | grep -q '^unarchived widgets\$' \
+  bash -c "cd '${plain_dir}' && out=\$('${AMD}' init widgets --no-claude 2>&1) && echo \"\$out\" | grep -q '^unarchived widgets\$' \
     && ! grep -q archived widgets-tickets/.settings \
     && '${AMD}' deregister widgets-tickets | grep -q deregistered \
     && '${AMD}' deregister widgets-documents | grep -q deregistered"
@@ -182,7 +182,28 @@ assert "rite init gives the repositories it creates a .gitattributes keeping tex
       git -C sprocket-\${kind} ls-files --error-unmatch .gitattributes >/dev/null 2>&1 \
         && grep -qx '\* text=auto eol=lf' sprocket-\${kind}/.gitattributes || exit 1; \
     done"
-assert "...and leaves a repository that was already there without one" \
+assert "rite init creates {project}-claude.md holding CLAUDE.md, committed and pushed (ticket 396)" \
+  bash -c "cd '${nw}/here' && test -f sprocket-claude.md/CLAUDE.md \
+    && [ \"\$(git -C sprocket-claude.md log -1 --format=%s)\" = 'Initialise sprocket CLAUDE.md' ] \
+    && git --git-dir='${nw}/remote/sprocket-claude.md.git' show main:CLAUDE.md | grep -q '^# sprocket' \
+    && git -C sprocket-claude.md ls-files --error-unmatch .gitattributes"
+assert "...with a CLAUDE.md beside the repositories importing it" \
+  bash -c "cd '${nw}/here' && grep -qx '@sprocket-claude.md/CLAUDE.md' CLAUDE.md"
+assert "...and the claude.md repository isn't registered (it has no board)" \
+  bash -c "! grep -rqs 'claude.md' '${nw}/config'"
+assert "running init again leaves an edited CLAUDE.md and the stub alone" \
+  bash -c "cd '${nw}/here' && printf 'mine\n' >sprocket-claude.md/CLAUDE.md && printf 'stub\n' >CLAUDE.md \
+    && env PATH='${nw}/bin:${PATH}' GH_REMOTE='${nw}/remote' XDG_CONFIG_HOME='${nw}/config' \
+      GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t.co GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t.co \
+      '${AMD}' init sprocket >/dev/null 2>&1 \
+    && grep -qx mine sprocket-claude.md/CLAUDE.md && grep -qx stub CLAUDE.md"
+mkdir -p "${nw}/skip"
+assert "rite init --no-claude creates neither the repository nor the CLAUDE.md" \
+  bash -c "cd '${nw}/skip' && env PATH='${nw}/bin:${PATH}' GH_REMOTE='${nw}/remote' XDG_CONFIG_HOME='${nw}/config' \
+      GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t.co GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t.co \
+      '${AMD}' init cog --no-claude >/dev/null 2>&1 \
+    && test -d cog-tickets && test -d cog-documents && test ! -e cog-claude.md && test ! -e CLAUDE.md"
+assert "...and a repository that was already there is left without one" \
   bash -c "test ! -e '${plain_dir}/widgets-tickets/.gitattributes' -a ! -e '${plain_dir}/widgets-documents/.gitattributes'"
 rm -rf "${nw}"
 
@@ -206,7 +227,7 @@ printf '[user]\n\tname = maker\n\temail = maker@t.co\n[commit]\n\tgpgsign = fals
   git init -q old-documents
 )
 assert "re-running init on it adds you and says so" \
-  bash -c "cd '${backfill}/work' && out=\"\$(env ${maker} '${AMD}' init old 2>/dev/null)\" \
+  bash -c "cd '${backfill}/work' && out=\"\$(env ${maker} '${AMD}' init old --no-claude 2>/dev/null)\" \
     && grep -q 'added you (maker <maker@t.co>)' <<<\"\${out}\""
 assert "...pushed, so the remote lists you" \
   bash -c "git --git-dir='${backfill}/origin/old-tickets.git' show main:.settings | grep -qx 'users = maker <maker@t.co>'"
@@ -249,7 +270,7 @@ printf '[user]\n\tname = maker\n\temail = maker@t.co\n[commit]\n\tgpgsign = fals
 )
 remote_users() { git --git-dir="${catchup}/origin.git" show main:.settings | grep '^users = '; }
 assert "a clean clone that's behind is fast-forwarded, then you're added and pushed" \
-  bash -c "cd '${catchup}/behind' && out=\"\$(env ${as_maker} '${AMD}' init late 2>&1)\" \
+  bash -c "cd '${catchup}/behind' && out=\"\$(env ${as_maker} '${AMD}' init late --no-claude 2>&1)\" \
     && grep -q 'caught up: 1 new change' <<<\"\${out}\" \
     && grep -q 'added you (maker <maker@t.co>)' <<<\"\${out}\" \
     && [ -z \"\$(git -C late-tickets rev-list @{u}..HEAD)\" ]"
@@ -259,14 +280,14 @@ assert "...so the remote lists both of you" \
 before_users="$(remote_users)"
 dirty_head="$(git -C "${catchup}/dirty/late-tickets" rev-parse HEAD)"
 assert "a clone with uncommitted edits is left alone, with a warning" \
-  bash -c "cd '${catchup}/dirty' && env ${as_maker} '${AMD}' init late 2>&1 >/dev/null \
+  bash -c "cd '${catchup}/dirty' && env ${as_maker} '${AMD}' init late --no-claude 2>&1 >/dev/null \
     | grep -q \"has uncommitted changes — commit or stash them first, so you weren't added to late's users\""
 assert "...untouched: same commit, the edit still there, nobody added" \
   bash -c "cd '${catchup}/dirty/late-tickets' && [ \"\$(git rev-parse HEAD)\" = '${dirty_head}' ] \
     && grep -q half-done README.md && ! grep -q '^users' .settings"
 diverged_head="$(git -C "${catchup}/diverged/late-tickets" rev-parse HEAD)"
 assert "a clone that has diverged is left alone, with how to fix it" \
-  bash -c "cd '${catchup}/diverged' && env ${as_maker} '${AMD}' init late 2>&1 >/dev/null \
+  bash -c "cd '${catchup}/diverged' && env ${as_maker} '${AMD}' init late --no-claude 2>&1 >/dev/null \
     | grep -q 'run \`git pull --rebase\` there'"
 assert "...untouched, and the remote's users unchanged" \
   bash -c "[ \"\$(git -C '${catchup}/diverged/late-tickets' rev-parse HEAD)\" = '${diverged_head}' ] \
@@ -314,6 +335,15 @@ seed_bare() { # project kind -> a bare repo on main, seeded from the current dir
   git add -A && git commit -q -m seed && seed_bare acme tickets
   cd "${seed}" && git init -q -b main acme-documents && cd acme-documents
   git commit -q --allow-empty -m seed && seed_bare acme documents
+  # ... and its claude.md repository (ticket 396), which a project made
+  # before that repository existed lacks (nocl).
+  cd "${seed}" && git init -q -b main acme-claude.md && cd acme-claude.md
+  printf '# acme\n' >CLAUDE.md && git add CLAUDE.md && git commit -q -m seed && seed_bare acme claude.md
+  cd "${seed}" && git init -q -b main nocl-tickets && cd nocl-tickets
+  "${AMD}" init nocl --local-only >/dev/null
+  git add -A && git commit -q -m seed && seed_bare nocl tickets
+  cd "${seed}" && git init -q -b main nocl-documents && cd nocl-documents
+  git commit -q --allow-empty -m seed && seed_bare nocl documents
   # A project whose tickets repository has no board in it at all.
   cd "${seed}" && git init -q -b main blank && cd blank
   git commit -q --allow-empty -m seed && seed_bare blank tickets && seed_bare blank documents
@@ -325,6 +355,13 @@ ada="$(person ada ada@t.co)"
 assert "rite join clones both repositories side by side" \
   bash -c "cd '${people}/ada/work' && env ${ada} '${AMD}' join acme >/dev/null \
     && test -d acme-tickets/tasks/backlog && test -d acme-documents/.git"
+assert "join also clones {project}-claude.md and writes the CLAUDE.md importing it (ticket 396)" \
+  bash -c "cd '${people}/ada/work' && test -f acme-claude.md/CLAUDE.md && grep -qx '@acme-claude.md/CLAUDE.md' CLAUDE.md"
+assert "join of a project with no claude.md repository still works, and writes nothing for it" \
+  bash -c "mkdir -p '${people}/ada/nocl' && cd '${people}/ada/nocl' \
+    && env ${ada} '${AMD}' join nocl >/dev/null && test -d nocl-tickets/tasks/backlog \
+    && test ! -e nocl-claude.md && test ! -e CLAUDE.md \
+    && env ${ada} '${AMD}' deregister nocl-tickets >/dev/null && env ${ada} '${AMD}' deregister nocl-documents >/dev/null"
 assert "the joining user is added to the remote's users" \
   bash -c "$(declare -f remote_settings); origin='${origin}'; remote_settings | grep -q '^users = .*ada <ada@t.co>'"
 assert "both repositories are registered for the joining user" \
@@ -476,13 +513,13 @@ second="$(mktemp -d)"
     git init -q "${repo}"
     git -C "${repo}" config user.email t@t.co && git -C "${repo}" config user.name t
   done
-  "${AMD}" init first >/dev/null 2>&1
+  "${AMD}" init first --no-claude >/dev/null 2>&1
 )
 assert "init of a second project keeps the first current, and says how to switch" \
-  bash -c "cd '${second}' && '${AMD}' init later 2>/dev/null | grep -q 'current is still first; .rite project use later. to switch' \
+  bash -c "cd '${second}' && '${AMD}' init later --no-claude 2>/dev/null | grep -q 'current is still first; .rite project use later. to switch' \
     && grep -qx first .current-project"
 assert "init with a choice already made leaves it alone" \
-  bash -c "cd '${second}' && echo later >.current-project && '${AMD}' init first >/dev/null 2>&1 && grep -qx later .current-project"
+  bash -c "cd '${second}' && echo later >.current-project && '${AMD}' init first --no-claude >/dev/null 2>&1 && grep -qx later .current-project"
 for repo in first-tickets first-documents later-tickets later-documents; do
   "${AMD}" deregister "${repo}" >/dev/null 2>&1
 done

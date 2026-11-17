@@ -96,14 +96,44 @@ pub fn run(project: String, org: Option<String>) -> Result<()> {
 
     register(&tickets)?;
     register(&documents)?;
+    let claude = clone_claude(&git_base, owner, &project, &base);
 
     println!("Joined project '{project}' as {user}:");
     println!("  tickets:   {}", tickets.display());
     println!("  documents: {}", documents.display());
+    if let Some(claude) = &claude {
+        println!("  claude.md: {}", claude.display());
+    }
     if !added {
         println!("(you were already one of its users)");
     }
     crate::project::keep_existing(&base, &project)
+}
+
+/// Clones `{project}-claude.md` beside the others and writes the `CLAUDE.md`
+/// that imports it (ticket 396). Best effort and quiet: a project made before
+/// that repository existed, or created with `--no-claude`, simply has none,
+/// and nothing here may fail a join that has already landed.
+fn clone_claude(git_base: &str, owner: &str, project: &str, base: &Path) -> Option<PathBuf> {
+    let name = crate::init::claude_repo_name(project);
+    let target = base.join(&name);
+    if rite_lib::names::folder_named(base, &name)
+        .ok()
+        .flatten()
+        .is_some()
+        || target.symlink_metadata().is_ok()
+    {
+        return None;
+    }
+    let url = format!("{git_base}{owner}/{name}.git");
+    if git::clone(&url, &target).is_err() {
+        // Nothing to clean up after a failed clone, but a partial folder
+        // would stop the next join.
+        let _ = std::fs::remove_dir_all(&target);
+        return None;
+    }
+    crate::init::write_claude_stub(base, project).ok()?;
+    Some(target)
 }
 
 /// The fallible middle of `run`: both clones, the check that this really is
