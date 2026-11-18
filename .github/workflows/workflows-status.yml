@@ -1,4 +1,4 @@
-name: Workflow failures
+name: Workflows status
 
 # Ticket 348: a workflow that fails and that nobody opens is no check. When a
 # listed workflow finishes on main, on a schedule or for a release, a failure
@@ -14,8 +14,8 @@ name: Workflow failures
 # is listed (scripts/check-failure-reporter.sh, in CI, fails when one isn't).
 # Nothing here can notice a workflow that never runs.
 #
-# Self-test (Actions > Workflow failures > Run workflow, or
-# `gh workflow run workflow-failures.yml -f result=failed`, then
+# Self-test (Actions > Workflows status > Run workflow, or
+# `gh workflow run workflows-status.yml -f result=failed`, then
 # `-f result=passed`): opens, then closes, the issue "Workflow failed:
 # self-test (main)" through the same script and token as a real failure. Run
 # it after ISSUE_GENERATOR_TOKEN is renewed: when the token lapses this job

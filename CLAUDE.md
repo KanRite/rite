@@ -755,7 +755,7 @@ redundant. Their history is in git if it is ever wanted again.
   `feature/`, `bugfix/` and `chore/` branches run Linux x86_64 only. The branch
   type decides rather than a label, so the rule carries over to other forges.
   `macos.yml` (the Tuesday run) is gone.
-  **A failing workflow reaches the board** (ticket 348, `workflow-failures.yml`):
+  **A failing workflow reaches the board** (ticket 348, `workflows-status.yml`):
   when a listed workflow finishes on main, on a schedule or for a `v` tag, a failure
   opens a GitHub issue (one per workflow and branch, `scripts/workflow-report.sh`;
   CI's scheduled and manual runs, the full suite, report as `CI (full suite)`,
@@ -765,7 +765,7 @@ redundant. Their history is in git if it is ever wanted again.
   Not pull requests or Dependabot's branches. `workflow_run` needs every workflow
   named, so `scripts/check-failure-reporter.sh` (the `shell` job) fails when a new
   workflow isn't in the list. A workflow that never runs can't report itself.
-  **Self-test** (`gh workflow run workflow-failures.yml -f result=failed`, then
+  **Self-test** (`gh workflow run workflows-status.yml -f result=failed`, then
   `-f result=passed`): opens and closes "Workflow failed: self-test (main)"
   with the same script and token, so a lapsed `ISSUE_GENERATOR_TOKEN` shows.
 - `.github/dependabot.yml` and the **Dependabot gate** (tickets 246,
