@@ -15,6 +15,12 @@ name: Release
 # A pull request that changes this file or board-page.yml, or a run by hand
 # (workflow_dispatch), is a dry run: it builds every platform and keeps the
 # zips as workflow artifacts, and creates no release.
+#
+# Build once (ticket 389): when the tag's commit already has a successful dry
+# run by hand, with all six zips still kept, the tag releases those zips and
+# builds nothing, so what ships is what the dry run tested. A tag with no such
+# run (a hotfix tagged straight away, artifacts past their retention) builds
+# everything, as before.
 on:
   push:
     tags: ["v[0-9]+.[0-9]+.[0-9]+"]
@@ -24,16 +30,52 @@ on:
 
 permissions:
   contents: write
+  # To download the dry run's artifacts, which belong to another run.
+  actions: read
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # On a tag only: the dry run to release the zips of, if there is one.
+  reuse:
+    if: ${{ github.ref_type == 'tag' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run-id: ${{ steps.find.outputs.run-id }}
+    steps:
+      - id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The newest run by hand on this commit that succeeded and still
+          # has all six zips. Expired artifacts can't be downloaded.
+          for id in $(gh run list --repo "${REPO}" --workflow release.yml --commit "${SHA}" \
+            --event workflow_dispatch --status success --json databaseId --jq '.[].databaseId'); do
+            kept="$(gh api "repos/${REPO}/actions/runs/${id}/artifacts?per_page=100" \
+              --jq '[.artifacts[] | select(.expired == false and (.name | startswith("amd-")))] | length')"
+            if [ "${kept}" -eq 6 ]; then
+              echo "Releasing the zips from run ${id}: no build on the tag."
+              echo "run-id=${id}" >> "${GITHUB_OUTPUT}"
+              exit 0
+            fi
+            echo "Run ${id} has ${kept} of 6 zips kept: not using it."
+          done
+          echo "No dry run to release the zips of: building on the tag."
+
   page:
+    needs: reuse
+    if: ${{ !cancelled() && needs.reuse.outputs.run-id == '' }}
     uses: ./.github/workflows/board-page.yml
 
   build:
-    needs: page
+    needs: [reuse, page]
+    if: ${{ !cancelled() && needs.reuse.outputs.run-id == '' && needs.page.result == 'success' }}
     strategy:
       fail-fast: false
       matrix:
@@ -139,8 +181,8 @@ jobs:
   # left out with a warning rather than holding the others back: install.sh
   # falls back to a source build where there's no zip.
   release:
-    needs: build
-    if: ${{ !cancelled() && github.ref_type == 'tag' }}
+    needs: [reuse, build]
+    if: ${{ !cancelled() && github.ref_type == 'tag' && needs.reuse.result == 'success' }}
     runs-on: ubuntu-latest
     # It only downloads the zips and uploads them, usually under a minute;
     # like every job, it has a limit well short of GitHub's six hours (ticket
@@ -149,12 +191,28 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # The zips only, not the board's page.
+      # The zips only, not the board's page: this run's, or the dry run's.
       - uses: actions/download-artifact@v8
         with:
           pattern: amd-*
           path: dist
           merge-multiple: true
+          run-id: ${{ needs.reuse.outputs.run-id || github.run_id }}
+          github-token: ${{ github.token }}
+
+      # The zips were built before the tag existed, so check they're this
+      # release's: the version comes from Cargo.toml, not the tag.
+      - name: The dry run's zips are the tag's version
+        if: ${{ needs.reuse.outputs.run-id != '' }}
+        env:
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          unzip -p dist/amd-x86_64-unknown-linux-gnu.zip rite > rite
+          chmod +x rite
+          ./rite --version
+          ./rite --version | grep -qF "${TAG#v}" || { echo "::error::The dry run's zips are not ${TAG#v}"; exit 1; }
 
       - name: Create the release and attach the zips
         env:
