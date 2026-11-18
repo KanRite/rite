@@ -769,6 +769,51 @@ pub struct Board {
     pub archived: bool,
 }
 
+/// One line of `rite doctor` (ticket 385): a check of this machine's setup,
+/// as riteui's Preferences shows it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DoctorCheck {
+    /// Which check, stable (`registry-missing`, `git-version`, ...).
+    pub check: String,
+    /// `ok`, `warning` or `problem`.
+    pub status: String,
+    pub title: String,
+    /// More to say, a line each.
+    #[serde(default)]
+    pub detail: Vec<String>,
+    /// How to put it right, when there's a way.
+    #[serde(default)]
+    pub fix: Option<DoctorFix>,
+}
+
+/// How to put a [`DoctorCheck`] right: the command to run, and whether
+/// the Fix button does it (only in rite's own files on this machine).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DoctorFix {
+    pub command: String,
+    pub automatic: bool,
+}
+
+/// Every check, with how many are problems and warnings, and what a Fix
+/// just did (empty when it wasn't asked for).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DoctorReport {
+    pub checks: Vec<DoctorCheck>,
+    pub problems: usize,
+    pub warnings: usize,
+    #[serde(default)]
+    pub fixed: Vec<String>,
+}
+
+impl DoctorReport {
+    /// Whether a Fix would change anything.
+    pub fn can_fix(&self) -> bool {
+        self.checks
+            .iter()
+            .any(|c| c.status != "ok" && c.fix.as_ref().is_some_and(|f| f.automatic))
+    }
+}
+
 /// A newer KanRite release for the update bar (ticket 192): its version,
 /// its release notes, how many releases this build is behind, and the
 /// version running now.
@@ -1829,6 +1874,43 @@ mod tests {
         assert!(!team.next_to(Column::Doing, Column::Done));
         assert_eq!(team.wip(review), Some(1));
         assert_eq!(team.label(review), "Review");
+    }
+
+    fn doctor_check(status: &str, automatic: Option<bool>) -> DoctorCheck {
+        DoctorCheck {
+            check: "x".into(),
+            status: status.into(),
+            title: "t".into(),
+            detail: Vec::new(),
+            fix: automatic.map(|automatic| DoctorFix {
+                command: "c".into(),
+                automatic,
+            }),
+        }
+    }
+
+    #[test]
+    fn fix_is_offered_only_for_a_check_that_isnt_ok_and_has_an_automatic_fix() {
+        let report = |checks| DoctorReport {
+            checks,
+            ..Default::default()
+        };
+        assert!(!report(vec![]).can_fix());
+        assert!(!report(vec![doctor_check("warning", None)]).can_fix());
+        assert!(!report(vec![doctor_check("warning", Some(false))]).can_fix());
+        assert!(!report(vec![doctor_check("ok", Some(true))]).can_fix());
+        assert!(
+            report(vec![
+                doctor_check("ok", None),
+                doctor_check("warning", Some(true))
+            ])
+            .can_fix()
+        );
+        // What rite-ui sends is read back as it is.
+        let json =
+            serde_json::to_string(&report(vec![doctor_check("problem", Some(false))])).unwrap();
+        let back: DoctorReport = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.checks[0].status, "problem");
     }
 
     #[test]

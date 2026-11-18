@@ -62,6 +62,11 @@ struct OnArgs {
     on: bool,
 }
 
+#[derive(Serialize)]
+struct OnFixArgs {
+    fix: bool,
+}
+
 pub async fn auto_commit() -> Result<bool, String> {
     call("auto_commit", &NoArgs {}).await
 }
@@ -411,6 +416,12 @@ pub async fn delete_epic(repo: Option<&str>, name: &str) -> Result<SyncReport, S
 /// A newer KanRite to offer (ticket 192), if any.
 pub async fn update_status() -> Result<Option<rite_ui_model::UpdateInfo>, String> {
     call("update_status", &NoArgs {}).await
+}
+
+/// `rite doctor` (ticket 385): the checks of this machine's setup; with `fix`,
+/// after putting right what rite can in its own files.
+pub async fn doctor(fix: bool) -> Result<rite_ui_model::DoctorReport, String> {
+    call("doctor", &OnFixArgs { fix }).await
 }
 
 /// The update bar's Update: installs the newest release (ticket 191).

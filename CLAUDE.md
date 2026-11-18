@@ -324,8 +324,14 @@ redundant. Their history is in git if it is ever wanted again.
   no users skipped). **Not done, on purpose:** the Windows PSReadLine /
   `PSModulePath` check, since riteui's terminal panel already works around it
   (ticket 346, `without_powershell_7`) and it can't be tested off Windows.
-  Still to do under 385: riteui Preferences (which needs the MCP checks
-  moved into rite-lib).
+  Third slice: the MCP checks now live in rite-lib
+  (`doctor/mcp.rs`: `old_entries`, `check(home, path)`), and `doctor::check_all`
+  is the one list, run by the CLI and by riteui's `doctor` command
+  (`crates/rite-ui/src/lib.rs`, `fix: bool`), which returns rite-ui-model's
+  `DoctorReport` (statuses as `ok`/`warning`/`problem` strings,
+  `can_fix()`); Preferences' `DoctorSection` shows the non-ok ones with their
+  commands, **Check again**, and **Fix** (`doctor::fix`, then reloads the
+  landing page) only when a check has an automatic fix.
 - `crates/rite-lib/src/project_trust.rs` — a per-machine, trust-on-first-use
   check that a board's declared `project` hasn't changed unexpectedly since
   `rite` last saw it.

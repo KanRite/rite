@@ -1136,6 +1136,43 @@ async fn update_status() -> Result<Option<rite_ui_model::UpdateInfo>> {
     blocking(|| Ok(updates::status())).await
 }
 
+/// `rite doctor` for Preferences (ticket 385): every check of this machine's
+/// setup, after putting right what rite can in its own files when `fix`.
+#[tauri::command]
+async fn doctor(fix: bool) -> Result<rite_ui_model::DoctorReport> {
+    blocking(move || {
+        use rite_lib::doctor;
+        let machine = doctor::Machine::here().ok_or("no config folder to look in")?;
+        let fixed = if fix {
+            doctor::fix(&machine).map_err(err)?
+        } else {
+            Vec::new()
+        };
+        let home = rite_lib::home::dir();
+        let findings = doctor::check_all(&machine, home.as_deref());
+        let (problems, warnings) = doctor::counts(&findings);
+        Ok(rite_ui_model::DoctorReport {
+            checks: findings
+                .into_iter()
+                .map(|f| rite_ui_model::DoctorCheck {
+                    check: f.check.to_string(),
+                    status: f.status.word().to_string(),
+                    title: f.title,
+                    detail: f.detail,
+                    fix: f.fix.map(|fix| rite_ui_model::DoctorFix {
+                        command: fix.command,
+                        automatic: fix.automatic,
+                    }),
+                })
+                .collect(),
+            problems,
+            warnings,
+            fixed,
+        })
+    })
+    .await
+}
+
 /// The version riteui's program on disk is now, when it was replaced while
 /// running and isn't this one (ticket 208): the page offers a Restart.
 #[tauri::command]
@@ -3230,6 +3267,7 @@ pub fn run() {
             delete_epic,
             move_epic_tickets,
             update_status,
+            doctor,
             snooze_update,
             check_for_update,
             whats_new,
