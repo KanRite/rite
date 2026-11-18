@@ -51,6 +51,13 @@ project whose documents already exist adds the small import file but
 leaves the documents alone, so a project made before this has none until
 you add `CLAUDE.md` to its documents repository and commit it.
 
+The first paragraph of a documents repository's `README.md`, after its
+headings, is the project's short summary: riteui's landing page shows it
+under the top bar's buttons, for the current project. A new repository's
+README starts with a placeholder paragraph to replace. Without a paragraph
+(a README that begins with a list, a table or a picture) the landing page
+shows nothing, and a long one is cut at 300 characters.
+
 A team can mix Windows, macOS and Linux. Windows tools often save files
 with Windows line endings (CRLF); rite reads those like any other and
 always writes plain LF, so a ticket edited on one system reads the same on
@@ -485,6 +492,9 @@ disagree.
   graphs away (▸ opens them), remembered on this machine. **⌂ Home** in a board's header comes back. "You" is git's
   identity in each project's own repository, so a different email per
   organisation works.
+- **A project summary** under the top bar's buttons: the first paragraph of
+  the current project's documents `README.md`, so a team can say in a line
+  what the project is. Nothing shows when there isn't one.
 - **Documents**: a project's documents, from the landing page's top bar
   (Documents, ADRs, Ideas, Shared). The left lists the markdown files in
   the project's `{project}-documents` repository by folder (`adr/adr`,

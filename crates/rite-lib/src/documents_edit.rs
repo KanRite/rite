@@ -452,6 +452,74 @@ pub fn start_page(root: &Path) -> Option<String> {
     })
 }
 
+/// The longest summary riteui's landing page shows (ticket 398).
+const SUMMARY_MAX: usize = 300;
+
+/// A project's short summary (ticket 398): the first paragraph of the
+/// documents repository's README, after its headings. A README that goes
+/// straight to a list, a table, a quote, an image, code or HTML has no
+/// paragraph to show, so none is shown. Lines of the paragraph are joined
+/// with spaces, and a long one is cut at `SUMMARY_MAX` characters.
+pub fn summary(root: &Path) -> Option<String> {
+    let readme = ["README.md", "readme.md", "Readme.md"]
+        .into_iter()
+        .map(|name| root.join(name))
+        .find(|p| p.is_file())?;
+    summary_of(&std::fs::read_to_string(readme).ok()?)
+}
+
+fn summary_of(text: &str) -> Option<String> {
+    let mut lines = text
+        .lines()
+        .map(str::trim)
+        .skip_while(|l| l.is_empty() || l.starts_with('#'));
+    let first = lines.next()?;
+    let not_prose = ["-", "*", "+", "|", ">", "!", "<", "`", "~"];
+    if not_prose.iter().any(|m| first.starts_with(m))
+        || first
+            .split_once(['.', ')'])
+            .is_some_and(|(n, _)| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
+    {
+        return None;
+    }
+    let mut words = vec![first];
+    words.extend(lines.take_while(|l| !l.is_empty() && !l.starts_with('#')));
+    let paragraph = without_marks(&words.join(" "));
+    if paragraph.chars().count() <= SUMMARY_MAX {
+        return Some(paragraph);
+    }
+    let cut: String = paragraph.chars().take(SUMMARY_MAX).collect();
+    // At a word boundary where there is one, so it doesn't end mid-word.
+    let cut = cut.rsplit_once(' ').map_or(cut.as_str(), |(head, _)| head);
+    Some(format!("{}…", cut.trim_end_matches([',', ';', ':', ' '])))
+}
+
+/// Markdown's inline marks taken out, so the landing page shows words: a
+/// link `[text](url)` is its text, and backticks and `**` go.
+fn without_marks(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(i) = rest.find('[') {
+        out.push_str(&rest[..i]);
+        let tail = &rest[i + 1..];
+        match tail.find("](").and_then(|j| {
+            let after = &tail[j + 2..];
+            after.find(')').map(|k| (j, j + 2 + k + 1))
+        }) {
+            Some((j, end)) if !tail[..j].contains('[') => {
+                out.push_str(&tail[..j]);
+                rest = &tail[end..];
+            }
+            _ => {
+                out.push('[');
+                rest = tail;
+            }
+        }
+    }
+    out.push_str(rest);
+    out.replace(['`'], "").replace("**", "")
+}
+
 /// Pins `path` as the start page, or, with `None`, goes back to the README.
 pub fn pin_start_page(root: &Path, path: Option<&str>) -> Result<Restored> {
     if let Some(path) = path {
@@ -1125,5 +1193,62 @@ mod tests {
             "unchanged"
         );
         assert!(replace(&root, "nope.md", "x", None).is_err(), "missing");
+    }
+
+    #[test]
+    fn summary_is_the_first_paragraph_after_the_headings() {
+        let text = "# Acme documents\n\nA budgeting app\nfor small teams.\n\n- `adr/`: decisions\n";
+        assert_eq!(
+            summary_of(text).as_deref(),
+            Some("A budgeting app for small teams.")
+        );
+        assert_eq!(summary_of("# Only a heading\n"), None);
+        assert_eq!(summary_of(""), None);
+    }
+
+    #[test]
+    fn summary_skips_a_readme_that_starts_with_a_list_table_or_image() {
+        for text in [
+            "# A\n\n- one\n- two\n",
+            "# A\n\n1. one\n",
+            "# A\n\n| a | b |\n",
+            "# A\n\n![logo](x.png)\n",
+            "# A\n\n<img src=x>\n",
+            "# A\n\n```\ncode\n```\n",
+            "# A\n\n> quoted\n",
+        ] {
+            assert_eq!(summary_of(text), None, "{text:?}");
+        }
+        // A number inside the sentence isn't a list marker.
+        assert_eq!(
+            summary_of("# A\n\nRelease 5.2 is out.\n").as_deref(),
+            Some("Release 5.2 is out.")
+        );
+    }
+
+    #[test]
+    fn summary_is_cut_at_a_word() {
+        let long = "word ".repeat(100);
+        let got = summary_of(&format!("# A\n\n{long}\n")).unwrap();
+        assert!(got.ends_with("word…"), "{got}");
+        assert!(got.chars().count() <= SUMMARY_MAX + 1);
+    }
+
+    #[test]
+    fn summary_shows_words_not_markdown() {
+        let text =
+            "# A\n\nHow it is **built**, in [adr/](adr/0001.md) and `docs`; see [x] and [open.\n";
+        assert_eq!(
+            summary_of(text).as_deref(),
+            Some("How it is built, in adr/ and docs; see [x] and [open.")
+        );
+    }
+
+    #[test]
+    fn summary_reads_the_readme_file() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(summary(dir.path()), None);
+        std::fs::write(dir.path().join("README.md"), "# T\n\nHello there.\n").unwrap();
+        assert_eq!(summary(dir.path()).as_deref(), Some("Hello there."));
     }
 }

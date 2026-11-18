@@ -44,6 +44,7 @@ pub fn HomeView(home: RwSignal<Option<Result<Home, String>>>) -> impl IntoView {
     });
     view! {
         <div class="mx-auto flex h-full max-w-5xl flex-col gap-6 overflow-y-auto p-6">
+            <HomeSummary />
             {move || match home.get() {
                 None => view! { <p class="text-sm text-slate-500">"Loading your work…"</p> }.into_any(),
                 Some(Err(e)) => {
@@ -72,6 +73,47 @@ pub fn HomeView(home: RwSignal<Option<Result<Home, String>>>) -> impl IntoView {
     }
 }
 
+/// The landing page's current project: the project whose board was on
+/// screen, when there was one (ticket 175: going Home from a board keeps it
+/// current, whatever the folder's `.current-project` says), else what riteui
+/// has open.
+fn current_project(ctx: Ctx) -> Option<rite_ui_model::HomeProject> {
+    let on_screen = ctx.board.with(|b| {
+        // Not `Path::parent`: this is wasm, which only splits on `/`, and a
+        // Windows path has `\` (ticket 329).
+        b.as_ref()
+            .and_then(|b| rite_ui_model::parent_path(&b.tasks_dir))
+    });
+    ctx.home.with(|h| {
+        let h = h.as_ref().and_then(|h| h.as_ref().ok())?;
+        // Git says `G:/a/b` where the registry has `G:\a\b` on Windows
+        // (ticket 329), so compare the places, not the spellings.
+        let pick = |root: &str| {
+            h.projects
+                .iter()
+                .find(|p| rite_ui_model::same_path(&p.root, root))
+                .cloned()
+        };
+        on_screen
+            .as_deref()
+            .and_then(pick)
+            .or_else(|| pick(&h.current))
+    })
+}
+
+/// The current project's short summary, under the landing page's buttons
+/// (ticket 398). Nothing at all when it has none.
+#[component]
+fn HomeSummary() -> impl IntoView {
+    let ctx = Ctx::get();
+    move || {
+        current_project(ctx)
+            .map(|p| p.summary)
+            .filter(|s| !s.is_empty())
+            .map(|s| view! { <p class="max-w-3xl text-sm text-slate-600 dark:text-slate-300">{s}</p> })
+    }
+}
+
 /// The landing page's top bar (ticket 168): the current project, a picker
 /// to change it, its Board (172), and its Documents, ADRs, Ideas and Shared, each greyed out
 /// when that repository isn't cloned here. Choosing another project makes
@@ -81,31 +123,7 @@ pub fn HomeBar() -> impl IntoView {
     let ctx = Ctx::get();
     let home = ctx.home;
     let data = move || home.with(|h| h.as_ref().and_then(|h| h.as_ref().ok()).cloned());
-    // The project whose board was on screen, when there was one (ticket
-    // 175: going Home from a board keeps it current, whatever the folder's
-    // `.current-project` says), else what riteui has open.
-    let on_screen = move || {
-        ctx.board.with(|b| {
-            // Not `Path::parent`: this is wasm, which only splits on `/`,
-            // and a Windows path has `\` (ticket 329).
-            b.as_ref()
-                .and_then(|b| rite_ui_model::parent_path(&b.tasks_dir))
-        })
-    };
-    let current = move || {
-        data().and_then(|h| {
-            let shown = on_screen();
-            // Git says `G:/a/b` where the registry has `G:\a\b` on Windows
-            // (ticket 329), so compare the places, not the spellings.
-            let pick = |root: &str| {
-                h.projects
-                    .iter()
-                    .find(|p| rite_ui_model::same_path(&p.root, root))
-                    .cloned()
-            };
-            shown.as_deref().and_then(pick).or_else(|| pick(&h.current))
-        })
-    };
+    let current = move || current_project(ctx);
     let choose = move |root: String| {
         spawn_local(async move {
             match api::set_tasks_dir(&root).await {
