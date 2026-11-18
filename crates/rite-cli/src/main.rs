@@ -212,7 +212,10 @@ VS Code, Cursor, Codex or Gemini CLI.
 `rite doctor` checks this machine's setup: registered repositories that
 are gone or aren't clones, a project with a board that isn't registered
 (riteui can't show it, not even as hidden), leftover hidden, folded and
-project-trust entries, and an old agile-md MCP entry. Each problem comes
+project-trust entries, the `rite` on the PATH (can `rite update` replace it,
+is its marker current, is it the only one), AI tools with no kanrite MCP entry
+or one that runs a `rite` that isn't there, an old agile-md MCP entry, and
+folders an older version left. Each problem comes
 with the command that fixes it, and nothing changes without --fix, which
 touches only rite's own files on this machine. It exits 1 while a problem
 is left, for scripts; --json gives the same list.

@@ -912,6 +912,22 @@ It checks:
 - **Leftovers**: entries in `ui.hidden-projects`, `ui.folded-graphs` and
   `project-trust` for folders that are gone. They do nothing; `--fix`
   takes them out.
+- **The install**: the `rite` first on your PATH (the one AI tools and
+  scripts run) is a release install `rite update` can replace, with a
+  current installer marker, and is the only `rite` there. A source or
+  cargo build isn't a fault, since you update it from your clone. No `rite`
+  on the PATH, one `rite update` can't replace, a marker from before the
+  rename, or two different `rite` files (listed in PATH order) are
+  warnings; the fix is the installer, or deleting the copy you don't want.
+- **kanrite in your AI tools**: each of Claude Code, Cursor, Codex and
+  Gemini CLI that's installed has a `kanrite` MCP entry (a warning if not:
+  `rite mcp setup <tool>`), and the entry runs a `rite` that's there (a
+  problem if it isn't).
+- **Folders an older version left**: an `agile-md` folder, or on Windows
+  5.0.0's folder under your home folder, still in place. rite moves them
+  the next time it starts, so one that's left is a move that failed, or a
+  second copy that's now ignored (a stale `project-trust` in it is named).
+  Nothing is deleted for you.
 - **The old `agile-md` MCP entry** in Claude Code, Cursor, Codex or Gemini
   CLI (a problem: it runs `amd`, which 5.0 renamed). rite never changes
   another tool's config, so `--fix` leaves it and names the command:

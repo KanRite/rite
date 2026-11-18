@@ -273,6 +273,22 @@ pub fn install_dir(exe: &Path) -> Install {
     }
 }
 
+/// Whether the installer's marker in `dir` is from before the rename
+/// (ticket 385): the uninstaller is still called `amd-uninstall`, or says
+/// `# agile-md install:`. A folder with no marker has no old one.
+pub fn old_marker(dir: &Path) -> bool {
+    let new = dir.join(MARKER);
+    if !new.exists() {
+        return dir.join(OLD_MARKER).exists();
+    }
+    crate::eol::read(&new).is_ok_and(|text| {
+        text.lines().any(|l| {
+            let l = l.trim();
+            l == OLD_RELEASE_INSTALL || l == OLD_SOURCE_INSTALL
+        })
+    })
+}
+
 /// Whether `dir` is Cargo's bin folder: `$CARGO_HOME/bin`, by default
 /// `~/.cargo/bin`.
 fn is_cargo_bin(dir: &Path, cargo_home: Option<std::ffi::OsString>, home: Option<PathBuf>) -> bool {

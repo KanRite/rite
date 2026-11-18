@@ -152,6 +152,57 @@ fn within(base: &Path) -> PathBuf {
     }
 }
 
+/// A per-machine folder that is still where an older version kept it
+/// (ticket 385): what `rite doctor` reports.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Stranded {
+    /// Where it is.
+    pub old: PathBuf,
+    /// Where it belongs.
+    pub new: PathBuf,
+    /// `true` when the new folder is there too, so the old one is ignored
+    /// and left behind; `false` when nothing has moved it yet.
+    pub left_behind: bool,
+}
+
+/// The old folders still in place: an `agile-md` one beside (or without) a
+/// `kanrite` one, and on Windows a 5.0.0 folder under the home folder.
+/// [`move_old_folders`] clears the second kind of case at the next start;
+/// what's here is what it couldn't or hasn't yet.
+pub fn stranded() -> Vec<Stranded> {
+    Place::ALL
+        .into_iter()
+        .filter_map(here)
+        .flat_map(|bases| stranded_in(&bases))
+        .collect()
+}
+
+fn stranded_in(bases: &Bases) -> Vec<Stranded> {
+    let is_real_dir = |p: &Path| fs::symlink_metadata(p).is_ok_and(|m| m.is_dir());
+    let new = bases.base.join(NAME);
+    let mut out = Vec::new();
+    let mut note = |old: PathBuf| {
+        out.push(Stranded {
+            left_behind: fs::symlink_metadata(&new).is_ok(),
+            old,
+            new: new.clone(),
+        });
+    };
+    let old = bases.base.join(OLD_NAME);
+    if is_real_dir(&old) {
+        note(old);
+    }
+    if let Some(legacy) = &bases.legacy {
+        for name in [NAME, OLD_NAME] {
+            let old = legacy.join(name);
+            if is_real_dir(&old) {
+                note(old);
+            }
+        }
+    }
+    out
+}
+
 /// Renames each `agile-md` folder that has no `kanrite` beside it, leaving
 /// a symlink at the old name (on Windows, which had no 4.x release, just
 /// the rename). On Windows it also moves a 5.0.0 folder under the home
@@ -249,6 +300,55 @@ mod tests {
         }
         // Once only.
         assert_eq!(move_in(base.path()), None);
+    }
+
+    #[test]
+    fn an_old_folder_with_nothing_moved_it_is_stranded_not_left_behind() {
+        let base = tempfile::tempdir().unwrap();
+        let bases = Bases {
+            base: base.path().to_path_buf(),
+            legacy: None,
+        };
+        assert_eq!(stranded_in(&bases), []);
+        fs::create_dir_all(base.path().join(OLD_NAME)).unwrap();
+        assert_eq!(
+            stranded_in(&bases),
+            [Stranded {
+                old: base.path().join(OLD_NAME),
+                new: base.path().join(NAME),
+                left_behind: false,
+            }]
+        );
+        // The new one there too: the old is left behind.
+        fs::create_dir_all(base.path().join(NAME)).unwrap();
+        assert!(stranded_in(&bases)[0].left_behind);
+    }
+
+    #[test]
+    fn a_5_0_0_folder_under_home_is_stranded_on_windows_layouts() {
+        let tmp = tempfile::tempdir().unwrap();
+        let bases = Bases {
+            base: tmp.path().join("Roaming"),
+            legacy: Some(tmp.path().join("me/.config")),
+        };
+        fs::create_dir_all(tmp.path().join("me/.config").join(NAME)).unwrap();
+        let found = stranded_in(&bases);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].old, tmp.path().join("me/.config").join(NAME));
+        assert!(!found[0].left_behind);
+        fs::create_dir_all(tmp.path().join("Roaming").join(NAME)).unwrap();
+        assert!(stranded_in(&bases)[0].left_behind);
+        // A symlink at the old name isn't a folder to move or clean up.
+        let linked = tempfile::tempdir().unwrap();
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(NAME, linked.path().join(OLD_NAME)).unwrap();
+            let bases = Bases {
+                base: linked.path().to_path_buf(),
+                legacy: None,
+            };
+            assert_eq!(stranded_in(&bases), []);
+        }
     }
 
     #[test]

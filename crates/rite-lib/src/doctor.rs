@@ -153,6 +153,13 @@ pub const DECLARED_NOT_REGISTERED: &str = "declared-not-registered";
 pub const STALE_HIDDEN: &str = "stale-hidden";
 pub const STALE_FOLDED: &str = "stale-folded";
 pub const STALE_TRUST: &str = "stale-trust";
+/// The install, found on the PATH (ticket 385).
+pub const NO_RITE_ON_PATH: &str = "no-rite-on-path";
+pub const INSTALL_UPDATABLE: &str = "install-updatable";
+pub const INSTALL_OLD_MARKER: &str = "install-old-marker";
+pub const INSTALL_COPIES: &str = "install-copies";
+/// An older version's per-machine folder still in place.
+pub const FOLDER_STRANDED: &str = "folder-stranded";
 
 /// `my_work`'s keys, in the same shape (comma-separated folders).
 const HIDDEN: &str = crate::my_work::HIDDEN;
@@ -507,6 +514,172 @@ fn stale_trust(state: &State) -> Vec<Finding> {
         finding = finding.because(format!("and {} more", gone.len() - SHOWN));
     }
     vec![finding.automatic()]
+}
+
+// ---- The install, and the per-machine folders (ticket 385). Read only: ----
+// ---- rite never replaces its own binary or moves a folder from here.     ----
+
+use std::ffi::OsStr;
+
+use crate::places;
+use crate::update_apply::{self, Install};
+
+/// The `rite` files on a PATH, first to last, one per distinct file.
+pub fn rites_on_path(path_var: Option<&OsStr>) -> Vec<PathBuf> {
+    let name = update_apply::file_name("rite");
+    let mut found: Vec<PathBuf> = Vec::new();
+    for dir in path_var.map(std::env::split_paths).into_iter().flatten() {
+        let file = dir.join(&name);
+        if !file.is_file() {
+            continue;
+        }
+        let file = dunce::canonicalize(&file).unwrap_or(file);
+        if !found.contains(&file) {
+            found.push(file);
+        }
+    }
+    found
+}
+
+/// The install the `rite` first on `path_var` belongs to: can `rite update`
+/// replace it, is its marker current, and is there only one `rite` on the
+/// PATH. `rite` on the PATH is what AI tools and scripts run, so that's the
+/// one judged, not the binary that happens to be running this check.
+pub fn install(path_var: Option<&OsStr>) -> Vec<Finding> {
+    let found = rites_on_path(path_var);
+    let Some(first) = found.first() else {
+        return vec![
+            Finding::found(
+                NO_RITE_ON_PATH,
+                Status::Warning,
+                "no `rite` is on the PATH".to_string(),
+            )
+            .because("AI tools start `rite mcp` by that name, and so do scripts")
+            .by_hand(update_apply::INSTALL_COMMAND),
+        ];
+    };
+    let mut out = vec![install_updatable(first)];
+    if let Some(dir) = first.parent()
+        && update_apply::old_marker(dir)
+    {
+        out.push(
+            Finding::found(
+                INSTALL_OLD_MARKER,
+                Status::Warning,
+                format!(
+                    "the install in {} has a marker from before the rename",
+                    dir.display()
+                ),
+            )
+            .because("`rite update` still reads it, but the installer writes a new one")
+            .by_hand(update_apply::INSTALL_COMMAND),
+        );
+    } else {
+        out.push(Finding::ok(
+            INSTALL_OLD_MARKER,
+            "the install's marker is current",
+        ));
+    }
+    out.extend(or_ok(
+        copies(&found),
+        INSTALL_COPIES,
+        "one `rite` on the PATH",
+    ));
+    out
+}
+
+fn install_updatable(rite: &Path) -> Finding {
+    match update_apply::install_dir(rite) {
+        Install::Managed(dir) => Finding::ok(
+            INSTALL_UPDATABLE,
+            &format!(
+                "rite in {} is a release install `rite update` manages",
+                dir.display()
+            ),
+        ),
+        // A source or cargo build is updated from its clone: not a fault.
+        Install::Unmanaged {
+            why,
+            reinstall: false,
+        } => Finding::ok(INSTALL_UPDATABLE, "rite is a source or cargo build").because(why),
+        Install::Unmanaged { why, .. } => Finding::found(
+            INSTALL_UPDATABLE,
+            Status::Warning,
+            "`rite update` can't replace the `rite` on the PATH".to_string(),
+        )
+        .because(why)
+        .by_hand(update_apply::INSTALL_COMMAND),
+    }
+}
+
+fn copies(found: &[PathBuf]) -> Vec<Finding> {
+    if found.len() < 2 {
+        return Vec::new();
+    }
+    let mut finding = Finding::found(
+        INSTALL_COPIES,
+        Status::Warning,
+        format!("{} different `rite` files are on the PATH", found.len()),
+    );
+    for (n, file) in found.iter().enumerate() {
+        let note = if n == 0 { " (the one that runs)" } else { "" };
+        finding = finding.because(format!("{}{note}", file.display()));
+    }
+    vec![finding.because(
+        "delete the ones you don't want (`cargo uninstall` for one cargo put there), so \
+         `rite update` and the tools all mean the same one",
+    )]
+}
+
+/// Folders an older version kept (`agile-md`, or 5.0.0's under the home
+/// folder on Windows) that are still there. rite moves them at its next
+/// start, so one that's left is a move that failed or a second copy that
+/// is now ignored.
+pub fn folders() -> Vec<Finding> {
+    folders_of(&places::stranded())
+}
+
+fn folders_of(stranded: &[places::Stranded]) -> Vec<Finding> {
+    let found: Vec<Finding> = stranded
+        .iter()
+        .map(|s| {
+            let what = |p: &Path| p.display().to_string();
+            if s.left_behind {
+                let mut finding = Finding::found(
+                    FOLDER_STRANDED,
+                    Status::Warning,
+                    format!(
+                        "{} is ignored: {} is used instead",
+                        what(&s.old),
+                        what(&s.new)
+                    ),
+                )
+                .because("both folders exist, so rite didn't move one over the other");
+                if s.old.join("project-trust").is_file() {
+                    finding = finding.because(
+                        "its project-trust file is stale: trust is read from the new folder",
+                    );
+                }
+                finding.by_hand(format!(
+                    "check nothing in {} is needed, then delete it",
+                    what(&s.old)
+                ))
+            } else {
+                Finding::found(
+                    FOLDER_STRANDED,
+                    Status::Warning,
+                    format!("{} hasn't been moved to {}", what(&s.old), what(&s.new)),
+                )
+                .because("rite moves it the next time it starts; this is used meanwhile")
+                .by_hand("rite --version")
+            }
+        })
+        .collect();
+    or_ok(
+        found,
+        FOLDER_STRANDED,
+        "rite's per-machine folders are where they belong",
+    )
 }
 
 /// Puts right what [`check`] can, in rite's own files only, and says what
@@ -915,6 +1088,129 @@ mod tests {
         let trust = Config::load_from(&fx.machine.trust());
         assert_eq!(trust.keys().count(), 1);
         assert!(not_ok(&check(&fx.machine)).is_empty());
+    }
+
+    /// A folder with a `rite` in it, and the installer's marker when given.
+    fn bin(parent: &Path, name: &str, marker: Option<&str>) -> PathBuf {
+        let dir = parent.join(name);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join(update_apply::file_name("rite")), "#!/bin/sh\n").unwrap();
+        if let Some(marker) = marker {
+            fs::write(
+                dir.join(update_apply::MARKER),
+                format!("#!/bin/sh\n{marker}\n"),
+            )
+            .unwrap();
+        }
+        dir
+    }
+
+    fn path_of(dirs: &[&Path]) -> std::ffi::OsString {
+        std::env::join_paths(dirs).unwrap()
+    }
+
+    #[test]
+    fn a_managed_install_with_one_rite_on_the_path_is_all_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = bin(tmp.path(), "bin", Some(update_apply::RELEASE_INSTALL));
+        let found = install(Some(path_of(&[&dir]).as_os_str()));
+        assert_eq!(not_ok(&found), []);
+        assert_eq!(found.len(), 3);
+    }
+
+    #[test]
+    fn no_rite_on_the_path_is_a_warning_naming_the_installer() {
+        let tmp = tempfile::tempdir().unwrap();
+        let empty = tmp.path().join("empty");
+        fs::create_dir_all(&empty).unwrap();
+        for path in [Some(path_of(&[&empty])), None] {
+            let found = install(path.as_deref());
+            assert_eq!(not_ok(&found), [(NO_RITE_ON_PATH, Status::Warning)]);
+            assert_eq!(
+                found[0].fix.as_ref().unwrap().command,
+                update_apply::INSTALL_COMMAND
+            );
+            assert!(!found[0].fix.as_ref().unwrap().automatic);
+        }
+    }
+
+    #[test]
+    fn an_install_without_a_marker_cant_be_updated_by_rite() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = bin(tmp.path(), "bin", None);
+        let found = install(Some(path_of(&[&dir]).as_os_str()));
+        assert_eq!(not_ok(&found), [(INSTALL_UPDATABLE, Status::Warning)]);
+    }
+
+    #[test]
+    fn a_source_build_is_not_a_fault() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = bin(tmp.path(), "bin", Some("# kanrite install: source"));
+        let found = install(Some(path_of(&[&dir]).as_os_str()));
+        assert_eq!(not_ok(&found), []);
+        assert!(found[0].title.contains("source or cargo build"));
+    }
+
+    #[test]
+    fn a_marker_from_before_the_rename_is_a_warning() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = bin(tmp.path(), "bin", Some(update_apply::OLD_RELEASE_INSTALL));
+        let found = install(Some(path_of(&[&dir]).as_os_str()));
+        assert_eq!(not_ok(&found), [(INSTALL_OLD_MARKER, Status::Warning)]);
+    }
+
+    #[test]
+    fn two_different_rites_on_the_path_are_a_warning_listing_both_in_order() {
+        let tmp = tempfile::tempdir().unwrap();
+        let first = bin(tmp.path(), "cargo", None);
+        let second = bin(tmp.path(), "local", Some(update_apply::RELEASE_INSTALL));
+        let found = install(Some(path_of(&[&first, &second, &first]).as_os_str()));
+        let copies: Vec<_> = found.iter().filter(|f| f.check == INSTALL_COPIES).collect();
+        assert_eq!(copies.len(), 1);
+        assert_eq!(copies[0].status, Status::Warning);
+        assert!(
+            copies[0].title.starts_with("2 different"),
+            "{:?}",
+            copies[0].title
+        );
+        assert!(copies[0].detail[0].ends_with("(the one that runs)"));
+        assert!(copies[0].detail[1].contains("local"));
+    }
+
+    #[test]
+    fn folders_an_older_version_left_are_warnings_and_none_is_ok() {
+        assert_eq!(not_ok(&folders_of(&[])), []);
+        let old = PathBuf::from("/h/.config/kanrite");
+        let new = PathBuf::from("/h/AppData/Roaming/kanrite");
+        let unmoved = places::Stranded {
+            old: old.clone(),
+            new: new.clone(),
+            left_behind: false,
+        };
+        let found = folders_of(&[unmoved]);
+        assert_eq!(not_ok(&found), [(FOLDER_STRANDED, Status::Warning)]);
+        assert!(found[0].title.contains("hasn't been moved"));
+        let behind = places::Stranded {
+            old,
+            new,
+            left_behind: true,
+        };
+        let found = folders_of(&[behind]);
+        assert!(found[0].title.contains("is ignored"));
+    }
+
+    #[test]
+    fn a_stale_project_trust_file_in_a_left_behind_folder_is_named() {
+        let tmp = tempfile::tempdir().unwrap();
+        let old = tmp.path().join(".config/kanrite");
+        fs::create_dir_all(&old).unwrap();
+        fs::write(old.join("project-trust"), "x = y\n").unwrap();
+        let found = folders_of(&[places::Stranded {
+            old,
+            new: tmp.path().join("Roaming/kanrite"),
+            left_behind: true,
+        }]);
+        assert!(found[0].detail.iter().any(|d| d.contains("project-trust")));
     }
 
     #[test]

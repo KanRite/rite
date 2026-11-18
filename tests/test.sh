@@ -3264,8 +3264,13 @@ echo "doctor:"
 doc="$(mktemp -d)"
 mkdir -p "${doc}/home" "${doc}/tmp" "${doc}/work/hosted"
 dr="${doc}/dr"
-printf '#!/usr/bin/env bash\nHOME=%q XDG_CONFIG_HOME=%q TMPDIR=%q exec %q doctor "$@"\n' \
-  "${doc}/home" "${doc}/config" "${doc}/tmp" "${AMD}" > "${dr}"
+# A PATH with one release-installed rite on it (the install checks look at the
+# `rite` first on the PATH, ticket 385), and nothing else that is one.
+mkdir -p "${doc}/bin"
+: > "${doc}/bin/rite"
+printf '#!/usr/bin/env bash\n# kanrite install: release\n' > "${doc}/bin/rite-uninstall"
+printf '#!/usr/bin/env bash\nHOME=%q XDG_CONFIG_HOME=%q TMPDIR=%q PATH="${DR_PATH:-%s}" exec %q doctor "$@"\n' \
+  "${doc}/home" "${doc}/config" "${doc}/tmp" "${doc}/bin:/usr/bin:/bin" "${AMD}" > "${dr}"
 chmod +x "${dr}"
 assert "rite doctor --help says it changes nothing without --fix, and offers --json" \
   bash -c "'${AMD}' doctor --help | tr '\n' ' ' | grep -q 'Changes nothing unless given --fix' && '${AMD}' doctor --help | grep -q -- '--json' && '${AMD}' --help | grep -q 'rite doctor'"
@@ -3298,6 +3303,31 @@ assert "after rite doctor --fix the hidden project can be shown again" \
 printf '{"mcpServers":{"agile-md":{}}}' > "${doc}/home/.claude.json"
 assert "rite doctor names rite mcp setup --fix for an old agile-md MCP entry, and doesn't change it" \
   bash -c "out=\$('${dr}' --fix); rc=\$?; [ \$rc -eq 1 ] && printf '%s' \"\$out\" | grep -q 'fix: rite mcp setup --fix' && grep -q agile-md '${doc}/home/.claude.json'"
+assert "rite doctor warns when no rite is on the PATH, naming the installer (ticket 385)" \
+  bash -c "out=\$(DR_PATH=/usr/bin:/bin '${dr}'); printf '%s' \"\$out\" | grep -q '^warning  no .rite. is on the PATH' && printf '%s' \"\$out\" | grep -q 'fix: .*install.sh'"
+mkdir -p "${doc}/bare" "${doc}/second"
+: > "${doc}/bare/rite"
+assert "rite doctor warns that a rite without the installer's marker can't be updated" \
+  bash -c "out=\$(DR_PATH='${doc}/bare:/usr/bin:/bin' '${dr}'); printf '%s' \"\$out\" | grep -q '^warning  .rite update. can.t replace the .rite. on the PATH'"
+: > "${doc}/second/rite"
+assert "rite doctor lists two different rites on the PATH, in order" \
+  bash -c "out=\$(DR_PATH='${doc}/bin:${doc}/second:/usr/bin:/bin' '${dr}'); printf '%s' \"\$out\" | grep -q '^warning  2 different .rite. files' && printf '%s' \"\$out\" | grep -q 'bin/rite (the one that runs)'"
+printf '#!/usr/bin/env bash\n# agile-md install: release\n' > "${doc}/second/rite-uninstall"
+assert "rite doctor flags an install marker from before the rename" \
+  bash -c "out=\$(DR_PATH='${doc}/second:/usr/bin:/bin' '${dr}'); printf '%s' \"\$out\" | grep -q '^warning  the install in .* has a marker from before the rename'"
+rm -f "${doc}/home/.claude.json"
+mkdir -p "${doc}/home/.cursor"
+assert "rite doctor warns of an installed AI tool with no kanrite entry, naming rite mcp setup" \
+  bash -c "out=\$('${dr}'); printf '%s' \"\$out\" | grep -q '^warning  Cursor has no kanrite MCP entry' && printf '%s' \"\$out\" | grep -q 'fix: rite mcp setup cursor'"
+printf '{"mcpServers":{"kanrite":{"command":"rite","args":["mcp"]}}}' > "${doc}/home/.cursor/mcp.json"
+assert "...and is satisfied by an entry that runs the rite on the PATH" \
+  bash -c "out=\$('${dr}'); printf '%s' \"\$out\" | grep -q '^ok       kanrite is registered in Cursor'"
+printf '{"mcpServers":{"kanrite":{"command":"%s/gone/rite"}}}' "${doc}" > "${doc}/home/.cursor/mcp.json"
+assert "rite doctor makes an entry running a rite that isn't there a problem, and exits 1" \
+  bash -c "out=\$('${dr}'); rc=\$?; [ \$rc -eq 1 ] && printf '%s' \"\$out\" | grep -q '^problem  Cursor.s kanrite MCP entry runs .*gone/rite., which isn.t there'"
+mkdir -p "${doc}/config/agile-md"
+assert "rite doctor warns of an old agile-md folder beside the kanrite one, which is ignored (ticket 385)" \
+  bash -c "out=\$('${dr}'); printf '%s' \"\$out\" | grep -q '^warning  .*/config/agile-md is ignored: .*/config/kanrite is used instead' && [ -d '${doc}/config/agile-md' ]"
 rm -rf "${doc}"
 
 echo "rite mcp reaches every project on this machine (ticket 381):"
