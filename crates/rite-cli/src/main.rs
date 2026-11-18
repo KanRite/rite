@@ -765,10 +765,14 @@ enum Cmd {
         #[arg(long, conflicts_with = "name")]
         clear: bool,
     },
-    /// Add a repository to the project
+    /// Add a repository to the project, or take one off
     ///
     /// Declares its name for the whole project (shared, git-tracked) and
-    /// its path on this machine (local only)
+    /// its path on this machine (local only). `--unregister NAME` takes it
+    /// off the project for everyone and off this machine, leaving the clone;
+    /// `--remove NAME` does that and then deletes this machine's clone,
+    /// refusing when it has uncommitted changes or commits that aren't
+    /// pushed. Neither touches the repository on the server
     Register {
         #[arg(value_name = "PATH")]
         path: Option<String>,
@@ -779,7 +783,13 @@ enum Cmd {
         #[arg(long, value_name = "NAME")]
         project: Option<String>,
         /// Take the named repository off the project's declared list, for
-        /// everyone (and off this machine's registry); same as `rite deregister`
+        /// everyone (and off this machine's registry), leaving its clone
+        #[arg(long, value_name = "NAME", conflicts_with_all = ["path", "remove"])]
+        unregister: Option<String>,
+        /// Unregister the named repository as `--unregister` does, then delete
+        /// this machine's clone of it. Refused when the clone has uncommitted
+        /// changes, commits that aren't pushed, or no upstream branch to tell.
+        /// The repository on the server is never touched
         #[arg(long, value_name = "NAME", conflicts_with = "path")]
         remove: Option<String>,
     },
@@ -794,11 +804,12 @@ enum Cmd {
         #[arg(long)]
         all: bool,
     },
-    /// Take a repository off the project
+    /// Take a repository off the project (same as `register --unregister`)
     ///
     /// For everyone: off its declared list (committed and pushed), so it
     /// leaves the repository lists, and off this machine. One that's only registered here just loses that. The clone
     /// itself is left alone
+    #[command(hide = true)]
     Deregister {
         #[arg(value_name = "NAME")]
         name: String,
@@ -1405,16 +1416,19 @@ fn run() -> Result<()> {
     if let Cmd::Register {
         path,
         project,
+        unregister,
         remove,
     } = command
     {
-        let board = register_board(path.as_deref(), project.as_deref(), remove.as_deref())?;
+        let leaving = unregister.as_deref().or(remove.as_deref());
+        let board = register_board(path.as_deref(), project.as_deref(), leaving)?;
         rite_lib::project_trust::check(&board)?;
         rite_lib::archive::ensure_writable(&board)?;
         migrate_settings(&board)?;
-        return match remove {
-            Some(name) => cmd_unregister(&board, &name),
-            None => cmd_register(&board, path.as_deref()),
+        return match (unregister, remove) {
+            (Some(name), _) => cmd_unregister(&board, &name),
+            (None, Some(name)) => cmd_remove(&board, &name),
+            (None, None) => cmd_register(&board, path.as_deref()),
         };
     }
     // `deregister` can take a repository off the project for everyone, so it
@@ -3687,7 +3701,61 @@ fn cmd_tags(board: &Board, action: Option<TagsAction>) -> Result<()> {
     }
 }
 
-/// `rite register --remove <name>`: takes a repository off the project's
+/// `rite register --remove <name>` (ticket 393): `--unregister`, then the
+/// clone on this machine is deleted. Nothing is changed when the clone can't
+/// safely go: uncommitted changes (untracked files too), commits that aren't
+/// pushed, or no upstream to tell by. The repository on the server is never
+/// touched, and neither are other people's machines.
+fn cmd_remove(board: &Board, name: &str) -> Result<()> {
+    let registry = Registry::load();
+    let clone = registry
+        .find(name)
+        .map(|entry| entry.root.clone())
+        .or_else(|| rite_lib::registry::beside(board.repo_root(), name));
+    let Some(clone) = clone.filter(|c| c.is_dir()) else {
+        // Nothing here to delete: it's `--unregister`.
+        return cmd_unregister(board, name);
+    };
+    let clone = dunce::canonicalize(&clone).unwrap_or(clone);
+    let own = dunce::canonicalize(board.repo_root()).unwrap_or_else(|_| board.repo_root().into());
+    let here = std::env::current_dir()
+        .ok()
+        .and_then(|d| dunce::canonicalize(d).ok());
+    if clone == own || here.is_some_and(|h| h.starts_with(&clone)) {
+        bail!(
+            "{name} is this board's own repository, or the folder you're in: \
+             run `rite register --unregister {name}` and delete it by hand"
+        );
+    }
+    if !git::dirty_paths(&clone)?.is_empty() {
+        bail!(
+            "{name} has uncommitted changes in {}: commit or discard them, or \
+             `rite register --unregister {name}` leaves the clone",
+            clone.display()
+        );
+    }
+    match git::ahead_behind(&clone) {
+        Some((0, _)) => {}
+        Some((ahead, _)) => bail!(
+            "{name} has {ahead} commit(s) that aren't pushed ({}): push them first",
+            clone.display()
+        ),
+        None => bail!(
+            "{name} has no upstream branch, so rite can't tell whether its commits \
+             are pushed ({}): push it, or `rite register --unregister {name}` and delete it by hand",
+            clone.display()
+        ),
+    }
+    cmd_unregister(board, name)?;
+    std::fs::remove_dir_all(&clone).with_context(|| format!("deleting {}", clone.display()))?;
+    println!(
+        "deleted {} (the repository on the server is untouched)",
+        clone.display()
+    );
+    Ok(())
+}
+
+/// `rite register --unregister <name>`: takes a repository off the project's
 /// declared list for everyone, committed and pushed, and off this machine's
 /// registry if it's there. The clone itself is left alone.
 fn cmd_unregister(board: &Board, name: &str) -> Result<()> {
@@ -3852,7 +3920,7 @@ fn cmd_clone(board: &Board, name: Option<&str>, all: bool) -> Result<()> {
 /// untouched, so `name` goes back to showing greyed out in `riteui` rather
 /// than disappearing for the rest of the team.
 /// `rite deregister <name>` (ticket 120). A repository the project declares
-/// comes off the project for everyone, exactly as `register --remove`: off the
+/// comes off the project for everyone, exactly as `register --unregister`: off the
 /// declared list, committed and pushed, so it leaves every teammate's
 /// repository filter and fields, and off this machine's registry. One that's only registered here (a project's own
 /// tickets or documents repository, say) just loses that registration. The

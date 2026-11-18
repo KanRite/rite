@@ -842,8 +842,15 @@ team shares the list:
 rite register ../acme-api      # add a repository to the project (and note where it's cloned here)
 rite clone                     # the project's repositories this machine hasn't got
 rite clone acme-api            # clone one beside the others, and note it
-rite deregister acme-api       # take one off the project
+rite register --unregister acme-api   # take one off the project, for everyone, leaving the clone
+rite register --remove acme-api       # …and delete this machine's clone too
 ```
+
+`--remove` refuses, and changes nothing, when the clone has uncommitted
+changes (untracked files too), commits that aren't pushed, or no upstream
+branch to tell by. It never touches the repository on the server, or anyone
+else's machine: they keep their clones, and `rite clone` no longer offers it.
+`rite deregister acme-api` still works, as `--unregister`.
 
 Where each repository is cloned is kept per machine, one path per line in
 `~/.config/kanrite/repos`; which repositories the project has is shared.
