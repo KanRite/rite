@@ -80,7 +80,7 @@ redundant. Their history is in git if it is ever wanted again.
   copies drifted (agile-md's registered repos sat uncommitted in documents
   while its tickets copy was stale). Now `load`/`save` use only the
   tickets file, and a setting change goes out like a ticket move:
-  `rite wip-limit`, `rite register`/`register --remove` and riteui's Settings
+  `rite wip-limit`, `rite register`/`register --unregister`/`--remove` and riteui's Settings
   all run through the auto-commit path. `migrate_from_documents` (run by
   the CLI after `catch_up`, and by riteui's `change()`) carries a documents
   `.settings/` across once — `repos` unioned, other keys filling gaps,
@@ -1782,11 +1782,11 @@ project, into one `riteui` window:
   terminal ("Register X with project P (this folder's current project)?")
   and **refuses** without one, naming the fixes. It hints `--project Y` when
   the repo's name starts with another project's name. `--project <name>`
-  always says outright. `deregister` (and `register --remove`) go through
+  always says outright. `deregister` (and `register --unregister`/`--remove`) go through
   the same check, worded "Take X off project P?" (ticket 120).
-- **`rite deregister <name>`** (ticket 120, reversing the earlier
-  local-only design): a repository the project **declares** comes off the
-  project for everyone, exactly as `rite register --remove` (now an alias):
+- **`rite register --unregister <name>`** (ticket 393; was `rite deregister`,
+  ticket 120, reversing the earlier local-only design, now a hidden alias):
+  a repository the project **declares** comes off the project for everyone:
   undeclared in the tickets `.settings`, committed and pushed, and dropped
   from this machine's registry. The repository filter and fields list the
   declared repositories and nothing else (`ticket_repos`, ticket 195: a
@@ -1794,7 +1794,12 @@ project, into one `riteui` window:
   everyone's lists. A repository
   that's only *registered* here (a project's own tickets or documents
   repository, a scratch board) just loses its registration. Neither is an
-  error. The clone is never touched. It takes `--project` like `register`.
+  error. `--unregister` never touches the clone. `register --remove <name>`
+  (`cmd_remove`) is `--unregister` and then deletes this machine's clone, after
+  refusing, changing nothing, for uncommitted changes (untracked files too),
+  commits not pushed, no upstream to tell by, or the board's own repository or
+  the folder you're in; the server's repository and other machines are never
+  touched. It takes `--project` like `register`.
 - **`rite repo new <name> [--for <ref>]`** (ticket 228,
   `crates/rite-lib/src/new_repo.rs`): makes a repository for the project,
   or connects one that's already there, from where the tickets

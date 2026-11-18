@@ -1171,12 +1171,63 @@ assert "...and --clear shows the project's own name again" \
 assert "rite register declares the repository in the tickets .settings, committed" \
   bash -c "cd '${st}/proj-tickets' && env ${st_env} '${AMD}' register '${st}/code' >/dev/null 2>&1 \
     && grep -q '^repos = .*code' .settings && git log -1 --format=%s | grep -qx 'register: code'"
-assert "rite register --remove undeclares it for everyone, committed" \
-  bash -c "cd '${st}/proj-tickets' && env ${st_env} '${AMD}' register --remove code 2>&1 | grep -q 'no longer part of the project' \
+assert "rite register --unregister undeclares it for everyone, committed, and leaves the clone" \
+  bash -c "cd '${st}/proj-tickets' && env ${st_env} '${AMD}' register --unregister code 2>&1 | grep -q 'no longer part of the project' \
     && ! grep -q '^repos = .*code' .settings && git log -1 --format=%s | grep -qx 'unregister: code' && test -d '${st}/code'"
 assert "...and refuses a repository that isn't declared" \
-  bash -c "cd '${st}/proj-tickets' && env ${st_env} '${AMD}' register --remove nowhere 2>&1 | grep -q \"nowhere isn't declared\""
+  bash -c "cd '${st}/proj-tickets' && env ${st_env} '${AMD}' register --unregister nowhere 2>&1 | grep -q \"nowhere isn't declared\""
+assert "rite deregister still works, as a hidden alias of register --unregister" \
+  bash -c "cd '${st}/proj-tickets' && env ${st_env} '${AMD}' register '${st}/code' >/dev/null 2>&1 \
+    && env ${st_env} '${AMD}' deregister code 2>&1 | grep -q 'no longer part of the project' && test -d '${st}/code' \
+    && ! '${AMD}' --help | grep -q deregister"
+assert "register's --help names --unregister and --remove, and the two can't be combined or given a path" \
+  bash -c "h=\"\$('${AMD}' register --help | tr -s ' \n' ' ')\"; grep -q -- '--unregister' <<<\"\${h}\" && grep -q -- '--remove' <<<\"\${h}\" \
+    && ! '${AMD}' register --unregister a --remove b >/dev/null 2>&1 && ! '${AMD}' register ./x --remove a >/dev/null 2>&1"
 rm -rf "${st}"
+
+echo "rite register --remove deletes this machine's clone, with guards (ticket 393):"
+rm_dir="$(mktemp -d)"
+rm_env="XDG_CONFIG_HOME=${rm_dir}/config"
+(
+  set -e
+  export XDG_CONFIG_HOME="${rm_dir}/config"
+  cd "${rm_dir}"
+  git init -q -b main proj-tickets
+  git init -q --bare -b main origin.git
+  git clone -q origin.git code 2>/dev/null
+  git init -q -b main lonely
+  for r in proj-tickets code lonely; do
+    git -C "${r}" config user.email t@t.co && git -C "${r}" config user.name t && git -C "${r}" config commit.gpgsign false
+  done
+  git -C code commit -q --allow-empty -m first && git -C code push -q -u origin main
+  git -C lonely commit -q --allow-empty -m first
+  cd proj-tickets
+  RITE_COMMIT=0 "${AMD}" init proj --local-only >/dev/null 2>&1
+  git add -A && git commit -q -m seed
+  "${AMD}" register ../code >/dev/null 2>&1
+  "${AMD}" register ../lonely >/dev/null 2>&1
+)
+assert "--remove refuses a clone with uncommitted changes (untracked files too), changing nothing" \
+  bash -c "cd '${rm_dir}/proj-tickets' && echo x >'${rm_dir}/code/new.txt' \
+    && ! env ${rm_env} '${AMD}' register --remove code 2>&1 | grep -q 'deleted' \
+    && env ${rm_env} '${AMD}' register --remove code 2>&1 | grep -q 'uncommitted changes' \
+    && grep -q '^repos = .*code' .settings && test -d '${rm_dir}/code'"
+assert "--remove refuses a clone with commits that aren't pushed" \
+  bash -c "cd '${rm_dir}/proj-tickets' && rm '${rm_dir}/code/new.txt' && git -C '${rm_dir}/code' commit -q --allow-empty -m local \
+    && env ${rm_env} '${AMD}' register --remove code 2>&1 | grep -q \"aren't pushed\" \
+    && grep -q '^repos = .*code' .settings && test -d '${rm_dir}/code'"
+assert "--remove refuses a clone with no upstream, since it can't tell" \
+  bash -c "cd '${rm_dir}/proj-tickets' && env ${rm_env} '${AMD}' register --remove lonely 2>&1 | grep -q 'no upstream' \
+    && test -d '${rm_dir}/lonely'"
+assert "--remove deletes a clean, pushed clone, undeclares it (committed), and leaves the server's repository" \
+  bash -c "cd '${rm_dir}/proj-tickets' && git -C '${rm_dir}/code' push -q origin main \
+    && env ${rm_env} '${AMD}' register --remove code 2>&1 | grep -q 'deleted' \
+    && ! test -e '${rm_dir}/code' && ! grep -q '^repos = .*code' .settings \
+    && git log -1 --format=%s | grep -qx 'unregister: code' && test -d '${rm_dir}/origin.git' \
+    && git -C '${rm_dir}/origin.git' log --oneline main | grep -q local"
+assert "--remove of a repository that isn't declared is refused" \
+  bash -c "cd '${rm_dir}/proj-tickets' && env ${rm_env} '${AMD}' register --remove nowhere 2>&1 | grep -q \"nowhere isn't declared\""
+rm -rf "${rm_dir}"
 
 echo "create:"
 # Tags have to be listed before use (ticket 167): only DRAFT and TRIAGE
