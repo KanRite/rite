@@ -214,8 +214,11 @@ are gone or aren't clones, a project with a board that isn't registered
 (riteui can't show it, not even as hidden), leftover hidden, folded and
 project-trust entries, the `rite` on the PATH (can `rite update` replace it,
 is its marker current, is it the only one), AI tools with no kanrite MCP entry
-or one that runs a `rite` that isn't there, an old agile-md MCP entry, and
-folders an older version left. Each problem comes
+or one that runs a `rite` that isn't there, an old agile-md MCP entry, folders
+an older version left, git (there, 2.29 or newer, and a signing key that exists
+when signing is on), a registered repository whose remote names an old
+organisation, project folders that differ only in case, and a ticket locked by
+someone who is no longer a user of its project. Each problem comes
 with the command that fixes it, and nothing changes without --fix, which
 touches only rite's own files on this machine. It exits 1 while a problem
 is left, for scripts; --json gives the same list.

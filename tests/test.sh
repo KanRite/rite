@@ -3325,6 +3325,13 @@ assert "...and is satisfied by an entry that runs the rite on the PATH" \
 printf '{"mcpServers":{"kanrite":{"command":"%s/gone/rite"}}}' "${doc}" > "${doc}/home/.cursor/mcp.json"
 assert "rite doctor makes an entry running a rite that isn't there a problem, and exits 1" \
   bash -c "out=\$('${dr}'); rc=\$?; [ \$rc -eq 1 ] && printf '%s' \"\$out\" | grep -q '^problem  Cursor.s kanrite MCP entry runs .*gone/rite., which isn.t there'"
+printf '[commit]\n\tgpgsign = true\n' > "${doc}/home/.gitconfig"
+assert "rite doctor makes git signing commits with no signing key a problem, and exits 1 (ticket 385)" \
+  bash -c "out=\$('${dr}'); rc=\$?; [ \$rc -eq 1 ] && printf '%s' \"\$out\" | grep -q '^problem  git signs commits but has no signing key'"
+rm -f "${doc}/home/.gitconfig"
+git -C "${doc}/work/hosted/hosted-tickets" remote add origin git@github.com:agile-md/agile-md-tickets.git
+assert "rite doctor warns of a registered repository whose remote names an old organisation, with the set-url fix" \
+  bash -c "out=\$('${dr}'); printf '%s' \"\$out\" | grep -q '^warning  hosted-tickets.s remote still names an old organisation' && printf '%s' \"\$out\" | grep -q 'remote set-url origin git@github.com:KanRite/kanrite-tickets.git'"
 mkdir -p "${doc}/config/agile-md"
 assert "rite doctor warns of an old agile-md folder beside the kanrite one, which is ignored (ticket 385)" \
   bash -c "out=\$('${dr}'); printf '%s' \"\$out\" | grep -q '^warning  .*/config/agile-md is ignored: .*/config/kanrite is used instead' && [ -d '${doc}/config/agile-md' ]"

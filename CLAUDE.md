@@ -313,8 +313,18 @@ redundant. Their history is in git if it is ever wanted again.
   `mcp_registered` reads each installed AI tool's config for a `kanrite`
   entry (missing: warning, `rite mcp setup <tool>`; its `command` not
   runnable: problem), leaving a tool with only the old entry to
-  `mcp_old_entry`. Still to do under 385: the git, board and Windows
-  PSReadLine checks, and riteui Preferences (which needs the MCP checks
+  `mcp_old_entry`. Second slice: `git_setup(runner)` (git missing or older than
+  `MIN_GIT` 2.29 is a problem; `commit.gpgsign` on with no `user.signingkey`,
+  or an SSH key file that isn't there, is a problem; whether GitHub accepts
+  the key *for signing* is not asked, since doctor stays off the network),
+  and in `check()`: `remotes_renamed` (a registered repository's `origin`
+  under `OLD_ORGS`, with the `set-url` fix), `case_twins` (folders beside a
+  registered one that differ only in case, `names::same`), `stale_locks` (a
+  `locked-by` who isn't in the board's `users`, active or lapsed; boards with
+  no users skipped). **Not done, on purpose:** the Windows PSReadLine /
+  `PSModulePath` check, since riteui's terminal panel already works around it
+  (ticket 346, `without_powershell_7`) and it can't be tested off Windows.
+  Still to do under 385: riteui Preferences (which needs the MCP checks
   moved into rite-lib).
 - `crates/rite-lib/src/project_trust.rs` — a per-machine, trust-on-first-use
   check that a board's declared `project` hasn't changed unexpectedly since
