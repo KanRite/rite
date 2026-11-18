@@ -287,7 +287,7 @@ jobs:
         run: |
           scripts/apt-install.sh shellcheck
           shellcheck -x --severity=warning install.sh tests/*.sh scripts/*.sh
-      # Every workflow is one workflow-failures.yml reports on (ticket 348),
+      # Every workflow is one workflows-status.yml reports on (ticket 348),
       # or a red one would never reach the board.
       - name: Every workflow is reported on
         run: scripts/check-failure-reporter.sh

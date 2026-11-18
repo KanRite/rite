@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # workflow-report.sh failed|passed — what a finished workflow leaves on GitHub
-# (ticket 348). Run by .github/workflows/workflow-failures.yml.
+# (ticket 348). Run by .github/workflows/workflows-status.yml.
 #
 #   failed  open an issue saying the workflow failed on that branch or tag, or
 #           comment on the one already open, so a workflow that stays red is
@@ -60,7 +60,7 @@ case "${MODE}" in
 
 Read the log with \`gh run view --log-failed\` on that run.
 
-This issue closes itself when a later run of ${WORKFLOW} on ${BRANCH} passes. It was raised by workflow-failures.yml, which does this for every workflow that runs on main, on a schedule or for a release."
+This issue closes itself when a later run of ${WORKFLOW} on ${BRANCH} passes. It was raised by workflows-status.yml, which does this for every workflow that runs on main, on a schedule or for a release."
       act gh issue create --repo "${REPO}" --title "${TITLE}" --body "${body}"
     fi
     ;;
