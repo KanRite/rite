@@ -46,11 +46,20 @@ pub fn run(fix: bool, json: bool) -> Result<()> {
 fn findings(machine: &Machine, home: Option<&Path>) -> Vec<Finding> {
     let path = std::env::var_os("PATH");
     let mut all = doctor::check(machine);
+    all.extend(doctor::git_setup(&git_answer));
     all.extend(doctor::install(path.as_deref()));
     all.extend(doctor::folders());
     all.extend(mcp(home));
     all.extend(mcp_registered(home, path.as_deref()));
     all
+}
+
+/// What `git` prints for `args`, trimmed, when it runs and succeeds.
+fn git_answer(args: &[&str]) -> Option<String> {
+    let out = std::process::Command::new("git").args(args).output().ok()?;
+    out.status
+        .success()
+        .then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
 
 /// The AI tools rite knows how to register with: the name `rite mcp setup`

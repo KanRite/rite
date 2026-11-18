@@ -928,6 +928,21 @@ It checks:
   the next time it starts, so one that's left is a move that failed, or a
   second copy that's now ignored (a stale `project-trust` in it is named).
   Nothing is deleted for you.
+- **Git**: installed and 2.29 or newer (a problem if not), and, when git
+  signs your commits, a signing key that's there (a problem if it isn't: every
+  commit would fail). It doesn't ask GitHub whether it accepts that key for
+  *signing*, which GitHub keeps apart from the key you log in with, since
+  `rite doctor` never goes on the network: `gh api users/<you>/ssh_signing_keys`
+  lists them.
+- **Remotes after a rename**: a registered repository whose `origin` still
+  names an organisation KanRite has left (`agile-md`, `agilerite`) works only
+  through GitHub's redirect (a warning, with the `git remote set-url` to run).
+- **Case twins**: two project folders that differ only in case, such as
+  `KanRite-tickets` beside `kanrite-tickets`. rite refuses to pick between
+  them, so keep one.
+- **Stale locks**: a ticket locked by someone who is no longer one of the
+  project's users (a warning, with `rite unlock <id> --force`). Projects that
+  record no users are skipped.
 - **The old `agile-md` MCP entry** in Claude Code, Cursor, Codex or Gemini
   CLI (a problem: it runs `amd`, which 5.0 renamed). rite never changes
   another tool's config, so `--fix` leaves it and names the command:
