@@ -26,8 +26,7 @@ const VERSIONS: [&str; 3] = ["2025-06-18", "2025-03-26", "2024-11-05"];
 
 /// The server's name in every client's config (ticket 315). It was
 /// `agile-md` before 5.0; [`setup`] says to remove an entry by that name.
-pub const SERVER: &str = "kanrite";
-const OLD_SERVER: &str = "agile-md";
+use rite_lib::doctor::mcp::{OLD_SERVER, SERVER, old_entries};
 
 const INSTRUCTIONS: &str = "KanRite is a Kanban board kept as markdown files in git. \
 These tools read the project's board, tickets, documents and ideas, and change tickets \
@@ -218,34 +217,6 @@ fn call(params: &Value) -> Value {
 
 /// The AI tools `rite mcp setup` knows how to connect.
 pub const CLIENTS: [&str; 5] = ["claude", "vscode", "cursor", "codex", "gemini"];
-
-/// The tools that still hold the pre-5.0 `agile-md` entry, found by reading
-/// their config files under `home` (nothing is changed). VS Code keeps its
-/// servers per project, so it isn't looked at.
-pub fn old_entries(home: &Path) -> Vec<&'static str> {
-    let in_json = |path: &str| {
-        std::fs::read_to_string(home.join(path))
-            .ok()
-            .and_then(|text| serde_json::from_str::<Value>(&text).ok())
-            .is_some_and(|v| v["mcpServers"].get(OLD_SERVER).is_some())
-    };
-    let in_codex = std::fs::read_to_string(home.join(".codex/config.toml")).is_ok_and(|text| {
-        text.lines().any(|line| {
-            let line = line.trim();
-            line == format!("[mcp_servers.{OLD_SERVER}]")
-                || line == format!("[mcp_servers.\"{OLD_SERVER}\"]")
-        })
-    });
-    [
-        ("claude", in_json(".claude.json")),
-        ("cursor", in_json(".cursor/mcp.json")),
-        ("codex", in_codex),
-        ("gemini", in_json(".gemini/settings.json")),
-    ]
-    .into_iter()
-    .filter_map(|(client, found)| found.then_some(client))
-    .collect()
-}
 
 /// `rite mcp setup --fix`: swaps Claude Code's `agile-md` entry for `kanrite`
 /// by asking `claude` to do it (`run` is given its arguments), so rite never

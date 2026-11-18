@@ -17,6 +17,8 @@
 //! Everything takes a [`Machine`] (the config folder and the temporary
 //! folder), so tests need no environment fiddling.
 
+pub mod mcp;
+
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
@@ -535,6 +537,27 @@ fn stale_trust(state: &State) -> Vec<Finding> {
         finding = finding.because(format!("and {} more", gone.len() - SHOWN));
     }
     vec![finding.automatic()]
+}
+
+/// What `git` prints for `args`, trimmed, when it runs and succeeds.
+pub fn git_answer(args: &[&str]) -> Option<String> {
+    let out = std::process::Command::new("git").args(args).output().ok()?;
+    out.status
+        .success()
+        .then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
+}
+
+/// Every check there is, for this machine: `rite doctor` and riteui's
+/// Preferences both show this list. `home` is where AI tools keep their
+/// config; the `PATH` and git are this process's.
+pub fn check_all(machine: &Machine, home: Option<&Path>) -> Vec<Finding> {
+    let path = std::env::var_os("PATH");
+    let mut all = check(machine);
+    all.extend(git_setup(&git_answer));
+    all.extend(install(path.as_deref()));
+    all.extend(folders());
+    all.extend(mcp::check(home, path.as_deref()));
+    all
 }
 
 // ---- Git, the repositories and the boards (ticket 385). Read only. ----

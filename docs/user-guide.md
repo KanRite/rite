@@ -949,6 +949,12 @@ It checks:
   `rite mcp setup --fix` for Claude Code, `rite mcp setup <tool>` for the
   others.
 
+The desktop board shows the same list at the bottom of **Preferences**, under
+**This machine's setup**: how many problems and warnings there are, each one
+with the command that fixes it, **Check again**, and a **Fix** button when
+some of it is something rite can put right in its own files (the same as
+`rite doctor --fix`).
+
 `--fix` only ever touches rite's own files on this machine (the registry,
 the hidden and folded lists in `config`, and `project-trust`): never a
 repository, never another tool's settings, never a folder. `rite doctor`

@@ -23,6 +23,7 @@ pub fn PreferencesPanel() -> impl IntoView {
                 <ReadAloudSection />
                 <EditorSection />
                 <UpdatesSection />
+                <DoctorSection />
             </div>
             <ModalClose />
         </Modal>
@@ -760,6 +761,142 @@ fn PiperSection() -> impl IntoView {
 
 /// Updates (ticket 304): the version running, when GitHub last answered a
 /// check, and Check now.
+/// What `rite doctor` finds on this machine (ticket 385): what's wrong with
+/// the setup, the command that puts it right, and a Fix for what rite can do
+/// in its own files. A problem the page shows is the same list the command
+/// prints.
+#[component]
+fn DoctorSection() -> impl IntoView {
+    let ctx = Ctx::get();
+    let report = RwSignal::new(None::<Result<rite_ui_model::DoctorReport, String>>);
+    let busy = RwSignal::new(false);
+    let run = move |fix: bool| {
+        busy.set(true);
+        spawn_local(async move {
+            let found = api::doctor(fix).await;
+            // A fix can register a project: the landing page's list changes.
+            if fix && found.is_ok() {
+                crate::home::load_home(ctx.home);
+            }
+            report.set(Some(found));
+            busy.set(false);
+        });
+    };
+    run(false);
+    let small = "rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100 disabled:opacity-50 dark:border-slate-600 dark:hover:bg-slate-700";
+    view! {
+        <section class="flex flex-col gap-2">
+            <h3 class="text-sm font-semibold">"This machine's setup"</h3>
+            {move || match report.get() {
+                None => view! { <p class="text-sm text-slate-500">"Checking…"</p> }.into_any(),
+                Some(Err(e)) => {
+                    view! { <p role="alert" class="text-sm text-red-700 dark:text-red-300">{format!("Couldn't check: {e}")}</p> }
+                        .into_any()
+                }
+                Some(Ok(r)) => {
+                    let can_fix = r.can_fix();
+                    let summary = if r.problems + r.warnings == 0 {
+                        format!("Everything checks out ({} checks).", r.checks.len())
+                    } else {
+                        format!(
+                            "{} {}, {} {}.",
+                            r.problems,
+                            if r.problems == 1 { "problem" } else { "problems" },
+                            r.warnings,
+                            if r.warnings == 1 { "warning" } else { "warnings" },
+                        )
+                    };
+                    let fixed = r.fixed.clone();
+                    let rows: Vec<_> = r.checks.into_iter().filter(|c| c.status != "ok").collect();
+                    view! {
+                        <div class="flex items-center gap-2">
+                            <p role="status" class="flex-1 text-sm">{summary}</p>
+                            <button
+                                type="button"
+                                class=small
+                                disabled=move || busy.get()
+                                on:click=move |_| run(false)
+                            >
+                                "Check again"
+                            </button>
+                            <Show when=move || can_fix>
+                                <button
+                                    type="button"
+                                    class=small
+                                    disabled=move || busy.get()
+                                    title="Puts right what rite can, in its own files on this machine only: the list of projects, and leftovers in its settings. Nothing in a repository changes."
+                                    on:click=move |_| run(true)
+                                >
+                                    "Fix"
+                                </button>
+                            </Show>
+                        </div>
+                        {(!fixed.is_empty())
+                            .then(|| {
+                                view! {
+                                    <ul class="list-disc pl-5 text-xs text-slate-600 dark:text-slate-300">
+                                        {fixed.into_iter().map(|line| view! { <li>{format!("Fixed: {line}")}</li> }).collect_view()}
+                                    </ul>
+                                }
+                            })}
+                        <ul class="flex flex-col gap-2">
+                            {rows
+                                .into_iter()
+                                .map(|c| {
+                                    let problem = c.status == "problem";
+                                    let tag = if problem { "Problem" } else { "Warning" };
+                                    let tag_class = if problem {
+                                        "rounded bg-red-100 px-1.5 text-xs font-medium text-red-800 dark:bg-red-900/40 dark:text-red-200"
+                                    } else {
+                                        "rounded bg-amber-100 px-1.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                                    };
+                                    view! {
+                                        <li class="rounded border border-slate-200 p-2 text-sm dark:border-slate-700">
+                                            <p>
+                                                <span class=tag_class>{tag}</span>
+                                                " "
+                                                {c.title}
+                                            </p>
+                                            {c
+                                                .detail
+                                                .into_iter()
+                                                .map(|d| view! { <p class="text-xs text-slate-600 dark:text-slate-300">{d}</p> })
+                                                .collect_view()}
+                                            {c
+                                                .fix
+                                                .map(|f| {
+                                                    let how = if f.automatic {
+                                                        "Fix puts this right".to_string()
+                                                    } else {
+                                                        "To fix, run".to_string()
+                                                    };
+                                                    let command = (!f.automatic).then_some(f.command);
+                                                    view! {
+                                                        <p class="mt-1 text-xs text-slate-500">
+                                                            {how}
+                                                            {command
+                                                                .map(|cmd| {
+                                                                    view! {
+                                                                        " "
+                                                                        <code class="select-all rounded bg-slate-100 px-1 py-0.5 dark:bg-slate-800">{cmd}</code>
+                                                                    }
+                                                                })}
+                                                        </p>
+                                                    }
+                                                })}
+                                        </li>
+                                    }
+                                })
+                                .collect_view()}
+                        </ul>
+                    }
+                        .into_any()
+                }
+            }}
+        </section>
+    }
+}
+
 #[component]
 fn UpdatesSection() -> impl IntoView {
     let checked = RwSignal::new(None::<i64>);
