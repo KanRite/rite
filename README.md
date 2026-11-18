@@ -121,8 +121,8 @@ a solo developer without it.
 ### Teams and projects
 
 - **`rite init`** creates a project's repositories on GitHub (tickets,
-  documents, and a `{project}-claude.md` repository holding the project's
-  `CLAUDE.md`); **`rite join`** gives a teammate the project and adds them
+  and documents, the latter starting with a `CLAUDE.md` for the project);
+  **`rite join`** gives a teammate the project and adds them
   as a user.
 - **Several repositories per project**, and several projects side by side;
   a new repository can be made from the ticket that needs it.
@@ -281,7 +281,7 @@ Building from source is in [CONTRIBUTING.md](CONTRIBUTING.md).
 Start a project, or join one, from the folder you keep projects in:
 
 ```bash
-rite init acme              # make acme-tickets, acme-documents and acme-claude.md on GitHub and clone them here
+rite init acme              # make acme-tickets and acme-documents on GitHub and clone them here
 rite join acme              # …or join a project someone else made
 ```
 

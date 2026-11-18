@@ -33,22 +33,23 @@ board (`riteui`). For what it is and how to install it, see the
 Start a project, or join one:
 
 ```bash
-rite init acme                     # make acme-tickets, acme-documents and acme-claude.md on GitHub and clone them here
+rite init acme                     # make acme-tickets and acme-documents on GitHub and clone them here
 rite join acme                     # …or join a project someone else made
 rite init acme --local-only        # …or keep the board in the repository you're in (tasks/)
-rite init acme --no-claude         # …or leave out acme-claude.md
 ```
 
-`acme-claude.md` is a third repository holding one file, `CLAUDE.md`: what
-Claude Code should know about this project, shared with the team and
-committed like the documents (straight to `main`, no pull request). Beside
-the three repositories `rite init` writes a small `CLAUDE.md` that imports
-it (`@acme-claude.md/CLAUDE.md`), because Claude Code reads a `CLAUDE.md`
-only from the folder it starts in and the folders above. Keep the shared
+A new `acme-documents` repository starts with a `CLAUDE.md` at its root:
+what Claude Code should know about this project, shared with the team like
+the rest of the documents. Beside the two repositories `rite init` and
+`rite join` write a small `CLAUDE.md` that imports it
+(`@acme-documents/CLAUDE.md`), because Claude Code reads a `CLAUDE.md` only
+from the folder it starts in and the folders above. Keep the shared
 workflow rules (branches, commits, tickets) in the `kanrite` skill and put
-only what is particular to the project in this file. `rite join` clones it
-too when the project has one, and an existing `CLAUDE.md` is never
-overwritten. It is not registered, since it has no board.
+only what is particular to the project in the documents file. An existing
+`CLAUDE.md` is never overwritten, and running `rite init` again on a
+project whose documents already exist adds the small import file but
+leaves the documents alone, so a project made before this has none until
+you add `CLAUDE.md` to its documents repository and commit it.
 
 A team can mix Windows, macOS and Linux. Windows tools often save files
 with Windows line endings (CRLF); rite reads those like any other and
