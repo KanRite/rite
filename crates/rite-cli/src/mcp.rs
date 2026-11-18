@@ -26,7 +26,7 @@ const VERSIONS: [&str; 3] = ["2025-06-18", "2025-03-26", "2024-11-05"];
 
 /// The server's name in every client's config (ticket 315). It was
 /// `agile-md` before 5.0; [`setup`] says to remove an entry by that name.
-const SERVER: &str = "kanrite";
+pub const SERVER: &str = "kanrite";
 const OLD_SERVER: &str = "agile-md";
 
 const INSTRUCTIONS: &str = "KanRite is a Kanban board kept as markdown files in git. \

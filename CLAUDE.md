@@ -301,7 +301,21 @@ redundant. Their history is in git if it is ever wanted again.
   environment. The CLI (`crates/rite-cli/src/doctor.rs`) adds the MCP check
   (`mcp::old_entries`, fix by hand: `rite mcp setup --fix`), prints or
   `--json`s (`checks`, `fixed`, `problems`, `warnings`), and exits 1 while
-  a problem is left (`process::exit`, no `rite:` error line).
+  a problem is left (`process::exit`, no `rite:` error line). Ticket 385,
+  first slice, all read-only (fixes by hand, `--fix` never touches them):
+  `install(PATH)` judges the `rite` **first on the PATH**, not the running
+  binary (so a dev build isn't nagged): `update_apply::install_dir`
+  (managed, or a source/cargo build, which is ok), `old_marker` (an
+  `amd-uninstall` or `# agile-md install:` marker), `rites_on_path` (two
+  different files is a warning); `folders()` reports `places::stranded()`
+  (an `agile-md`, or on Windows a 5.0.0 home-folder, folder still there:
+  not yet moved, or left behind with the new one in use); the CLI's
+  `mcp_registered` reads each installed AI tool's config for a `kanrite`
+  entry (missing: warning, `rite mcp setup <tool>`; its `command` not
+  runnable: problem), leaving a tool with only the old entry to
+  `mcp_old_entry`. Still to do under 385: the git, board and Windows
+  PSReadLine checks, and riteui Preferences (which needs the MCP checks
+  moved into rite-lib).
 - `crates/rite-lib/src/project_trust.rs` — a per-machine, trust-on-first-use
   check that a board's declared `project` hasn't changed unexpectedly since
   `rite` last saw it.
