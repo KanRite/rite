@@ -1515,6 +1515,10 @@ pub struct HomeProject {
     /// Why its repository isn't one, so it can't be opened (ticket 341).
     #[serde(default)]
     pub broken: Option<String>,
+    /// Its short summary, the first paragraph of its documents README
+    /// (ticket 398); empty when there is none.
+    #[serde(default)]
+    pub summary: String,
 }
 
 /// Which documents the Documents view shows (ticket 168): the project's

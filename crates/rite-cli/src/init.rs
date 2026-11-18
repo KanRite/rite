@@ -293,7 +293,8 @@ fn scaffold_documents(target: &Path, project: &str) -> Result<()> {
         std::fs::write(
             &readme,
             format!(
-                "# {project} documents\n\nADRs, RFCs, docs and ideas for {project}.\n\n\
+                "# {project} documents\n\nA short summary of {project}: what it is and who it is for. \
+                 riteui shows this paragraph on its landing page.\n\n\
                  - `adr/adr/`: architecture decision records, numbered.\n\
                  - `adr/rfc/`: requests for comments, the proposals decisions come from.\n\
                  - `docs/`: notes and how-tos.\n\
@@ -617,6 +618,13 @@ mod tests {
             assert!(target.join(sub).is_dir(), "{sub} missing");
         }
         assert!(target.join("README.md").exists());
+        // Its first paragraph is the project's summary, shown on riteui's
+        // landing page (ticket 398), so it asks for one.
+        let readme = std::fs::read_to_string(target.join("README.md")).unwrap();
+        assert!(
+            rite_lib::documents_edit::summary(&target).is_some_and(|s| s.contains("short summary")),
+            "{readme}"
+        );
         assert!(target.join("CHANGELOG.md").exists());
         assert!(
             !target.join(".settings").exists(),

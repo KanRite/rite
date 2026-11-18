@@ -2879,6 +2879,10 @@ async fn home() -> Result<rite_ui_model::Home> {
                         archived: p.archived,
                         graphs_folded: folded.contains(&p.root),
                         broken: p.broken,
+                        summary: own
+                            .and_then(|d| d.root.as_deref())
+                            .and_then(rite_lib::documents_edit::summary)
+                            .unwrap_or_default(),
                     }
                 })
                 .collect(),
