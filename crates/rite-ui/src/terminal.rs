@@ -26,7 +26,7 @@ use rite_ui_model::terminal::{TermCursor, TermFrame, TermRow, TermRun};
 /// How often, at most, a terminal's changes go to the page.
 const FRAME: Duration = Duration::from_millis(16);
 /// Lines kept above the screen.
-const SCROLLBACK: usize = 5000;
+const SCROLLBACK: usize = 20_000;
 
 /// `PSModulePath` for Windows PowerShell 5.1 with PowerShell 7's module
 /// folders taken out (ticket 346). A shell started from riteui inherits the
