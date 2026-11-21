@@ -1,7 +1,7 @@
 //! Importing tickets from an existing tasks-directory tree into the current
 //! board: status (column) preserved, ids renumbered against the
-//! destination's own counter, `parent`/`related` remapped within the
-//! imported batch. A ticket whose title is already on the board is left
+//! destination's own counter, `parent`/`related` and `[[wikilinks]]` in the
+//! text remapped within the imported batch (ticket 404). A ticket whose title is already on the board is left
 //! out and reported (ticket 173: an import never adds a second copy);
 //! same-titled tickets within the batch are both imported, flagged
 //! `DUPLICATE` for a human to sort out.
@@ -88,6 +88,8 @@ pub fn import(dest: &Board, source_root: &Path, dry_run: bool) -> Result<ImportS
         .collect();
 
     let mut id_map: HashMap<String, String> = HashMap::new();
+    // Old `NNN-slug` to new, for the `[[NNN-slug]]` links in ticket text.
+    let mut stem_map: HashMap<String, String> = HashMap::new();
     let mut pending: Vec<Pending> = Vec::new();
     let mut skipped: Vec<(PathBuf, String)> = Vec::new();
     let mut next = dest.next_id()?;
@@ -154,7 +156,9 @@ pub fn import(dest: &Board, source_root: &Path, dry_run: bool) -> Result<ImportS
                 .split_once('-')
                 .map(|(_, slug)| slug)
                 .unwrap_or(&task.stem);
-            let dest_path = dest.dir(column).join(format!("{new_id}-{slug}.md"));
+            let new_stem = format!("{new_id}-{slug}");
+            stem_map.insert(task.stem.clone(), new_stem.clone());
+            let dest_path = dest.dir(column).join(format!("{new_stem}.md"));
 
             pending.push(Pending {
                 old_id,
@@ -171,6 +175,7 @@ pub fn import(dest: &Board, source_root: &Path, dry_run: bool) -> Result<ImportS
     // run reports exactly what a real run would produce.
     for item in &mut pending {
         item.text = remap_links(&item.text, &id_map)?;
+        item.text = remap_wikilinks(&item.text, &stem_map, &id_map);
     }
 
     // Duplicate detection: within the batch and against the destination
@@ -336,6 +341,56 @@ fn remap_links(text: &str, id_map: &HashMap<String, String>) -> Result<String> {
     Ok(text)
 }
 
+/// Rewrites `[[NNN-slug]]` and bare `[[NNN]]` links in ticket text to the new
+/// numbers (ticket 404), for tickets in the batch only. In one pass, so a
+/// ticket renumbered to another's old number is not rewritten twice. A link
+/// to a ticket outside the batch is left as it was.
+fn remap_wikilinks(
+    text: &str,
+    stem_map: &HashMap<String, String>,
+    id_map: &HashMap<String, String>,
+) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(start) = rest.find("[[") {
+        let (before, from) = rest.split_at(start);
+        out.push_str(before);
+        let after = &from[2..];
+        let Some(end) = after.find("]]") else {
+            out.push_str(from);
+            return out;
+        };
+        let inner = &after[..end];
+        let key = inner.trim();
+        let replacement = if inner.contains(['\n', '[']) {
+            None
+        } else if let Some(new_stem) = stem_map.get(key) {
+            Some(new_stem)
+        } else if key.chars().all(|c| c.is_ascii_digit()) && !key.is_empty() {
+            id_map
+                .get(&format!("{:03}", key.parse::<u32>().unwrap_or(u32::MAX)))
+                .or_else(|| id_map.get(key))
+        } else {
+            None
+        };
+        match replacement {
+            Some(new) => {
+                out.push_str("[[");
+                out.push_str(new);
+                out.push_str("]]");
+            }
+            None => {
+                out.push_str("[[");
+                out.push_str(inner);
+                out.push_str("]]");
+            }
+        }
+        rest = &after[end + 2..];
+    }
+    out.push_str(rest);
+    out
+}
+
 fn add_tag(text: &str, tag: &str) -> Result<String> {
     let mut tags = task::meta_in(text, "tags")
         .map(task::parse_list)
@@ -484,6 +539,29 @@ mod tests {
         let child_text = crate::eol::read(dest.dir(Column::Backlog).join("002-child.md")).unwrap();
         assert!(child_text.contains("parent: \"001\""), "{child_text}");
         assert!(child_text.contains("related: [001]"), "{child_text}");
+    }
+
+    #[test]
+    fn wikilinks_in_the_text_follow_the_new_numbers_in_one_pass() {
+        let src_dir = tempfile::tempdir().unwrap();
+        let source = board_at(src_dir.path());
+        write_ticket(&source, Column::Backlog, "005", "alpha", "Alpha", "", "[]");
+        write_ticket(&source, Column::Backlog, "006", "beta", "Beta", "", "[]");
+        let beta = source.dir(Column::Backlog).join("006-beta.md");
+        let mut text = fs::read_to_string(&beta).unwrap();
+        text.push_str("see [[005-alpha]], bare [[005]], elsewhere [[099-gone]] and [[099]]\n");
+        fs::write(&beta, text).unwrap();
+
+        let dst_dir = tempfile::tempdir().unwrap();
+        let dest = board_at(dst_dir.path());
+        write_ticket(&dest, Column::Done, "001", "x", "Existing", "", "[]");
+        write_ticket(&dest, Column::Done, "002", "y", "Existing 2", "", "[]");
+        import(&dest, &source.root, false).unwrap();
+
+        // alpha -> 003, beta -> 004.
+        let text = crate::eol::read(dest.dir(Column::Backlog).join("004-beta.md")).unwrap();
+        assert!(text.contains("see [[003-alpha]], bare [[003]],"), "{text}");
+        assert!(text.contains("[[099-gone]] and [[099]]"), "{text}");
     }
 
     #[test]

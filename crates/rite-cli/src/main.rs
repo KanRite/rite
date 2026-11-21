@@ -73,7 +73,8 @@ folder you ran it from (never committed).
 Kinds:
   tickets    Run from this board's tasks/ directory; FROM is another board's
              tasks/ directory. Each ticket keeps its column, gets a fresh
-             number, and keeps parent and related links within the batch. A
+             number, and keeps parent, related and [[wikilinks]] to
+             other imported tickets pointing at the new numbers. A
              ticket whose title is already on this board is left out. One
              commit. The source board is never changed.
   documents  Run from the folder of a documents repository the files should
