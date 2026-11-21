@@ -2492,7 +2492,7 @@ related: []
 tags: []
 ---
 
-body
+body, after [[010-old-backlog-ticket]] and bare [[010]]
 TICKET
 cat > "${import_src}/done/007-shipped-feature.md" <<'TICKET'
 ---
@@ -2521,6 +2521,8 @@ assert "rite import lands tickets in their original columns with fresh ids, in o
     && test -f todo/002-in-progress-work.md \
     && test -f done/003-shipped-feature.md \
     && git log -1 --format=%s | grep -q '^import: tickets'"
+assert "...and the links in an imported ticket's text follow the new numbers (ticket 404)" \
+  bash -c "cd '${import_dst}/tasks' && grep -q 'after \[\[001-old-backlog-ticket\]\] and bare \[\[001\]\]' todo/002-in-progress-work.md"
 assert "the source tree is untouched by the import" \
   test -f "${import_src}/backlog/010-old-backlog-ticket.md"
 assert "a --dry-run import writes nothing" \

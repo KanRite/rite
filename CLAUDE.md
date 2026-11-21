@@ -526,8 +526,9 @@ redundant. Their history is in git if it is ever wanted again.
   the source folder go to the backlog (`loose_tickets`, `ImportSummary.loose`);
   the CLI says both. Reads the source as a read-only `Board` (`Board::at`) and copies
   each ticket in — status kept, id renumbered against the destination's
-  own counter, `parent`/`related` remapped when both ends are part of the
-  same batch. A ticket whose title is already on the board is **skipped
+  own counter, `parent`/`related` (and the other link keys) and `[[NNN-slug]]`/
+  bare `[[NNN]]` wikilinks in the text (ticket 404, `remap_wikilinks`, one pass)
+  remapped when both ends are part of the same batch. A ticket whose title is already on the board is **skipped
   and reported**, not imported (ticket 173; it used to be tagged
   DUPLICATE); same-titled tickets within the batch are both imported,
   tagged `DUPLICATE`. `archive/` isn't a destination. A ticket that fails
